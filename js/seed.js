@@ -120,7 +120,7 @@ export function buildSeed(T) {
     documentId: plannedDate <= w(6) ? 'doc-weekly' : null,
   }));
 
-  // 일일 실시사항 (15건: 2주 전 문서분 + 이번 주 직접 입력분)
+  // 일일 실시사항 (18건: 2주 전 문서분 + 이번 주 직접 입력분)
   const daily_logs = [
     [w(-14), 'm10', '장병 고충 상담 2건 처리', '완료', null, 'doc-logs'],
     [w(-13), 'm7', '장병 고충 처리 현황 점검 완료', '완료', 'o5', 'doc-logs'],
@@ -137,6 +137,10 @@ export function buildSeed(T) {
     [d(-1), 'm10', '월간 인사 현황 보고 제출 완료', '완료', 'c12', null],
     [d(-1), 'm6', '동계 안전대책 관련 회의 참석', '진행', null, null],
     [d(0), 'm12', '월간 보안점검 1차 진행', '진행', 'c7', null],
+    // 진행중 업무는 모두 진행 기록이 있도록 한다
+    [d(-6), 'm4', '연간 교육훈련 부서별 소요 취합, 계획 초안 작성 착수', '진행', 'c6', null],
+    [d(-4), 'm3', '지휘관 지시사항 관리 대장 정리 착수', '진행', 'o6', null],
+    [d(-2), 'm4', '신규 전입 간부 교육 자료 초안 작성 중', '진행', 'a1', null],
   ].map(([date, assigneeId, content, result, taskId, documentId], i) => ({
     id: `dl-${i + 1}`, date, assigneeId, content, result, taskId, documentId,
     location: documentId ? `${i + 2}번째 문단` : '',
