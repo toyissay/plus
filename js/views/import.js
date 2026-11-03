@@ -1,7 +1,7 @@
 // 화면 ③ 문서 가져오기·검토 (PRD §6 화면 ③)
 import {
   state, handlers, render, act, today, esc, options, memberOptions, memberName, memberFull, findTask,
-  saveRec, newTask, linkLog, toast, meId, proposeChange,
+  saveRec, newTask, linkLog, toast, meId, proposeChange, saveDocFile,
 } from '../core.js';
 import { fmtK, mondayOf, isISO } from '../dates.js';
 import { TYPE_LABEL, CYCLE_LABEL, byDue, logResult } from '../rules.js';
@@ -39,8 +39,9 @@ function uploadStep(s) {
     <table class="tbl compact"><tbody>${Object.entries(DOC_TYPES).map(([k, v]) => `<tr><td>${v}</td><td class="muted">${DOC_USE[k]}</td></tr>`).join('')}</tbody></table>
     <p class="hint">샘플 파일은 samples/hwpx 폴더에 있습니다. 예정사항은 표, 실시사항은 "○ 10.30.(금) 운용과: 내용" 같은 서술형 문장, 회의록은 "□ 사단장 지시사항" 아래 번호 목록 양식을 읽습니다.</p>
   </div>
-  ${recent.length ? `<div class="box pad"><h3>가져온 문서</h3><table class="tbl compact"><thead><tr><th>파일</th><th>종류</th><th>대상 기간</th><th>등록</th></tr></thead><tbody>
-    ${recent.map((d) => `<tr><td>${esc(d.fileName)}</td><td>${esc(DOC_TYPES[d.docType] || '')}</td><td>${fmtK(d.periodFrom)} ~ ${fmtK(d.periodTo)}</td><td class="muted">${esc(memberName(d.importedBy))}</td></tr>`).join('')}
+  ${recent.length ? `<div class="box pad"><h3>가져온 문서</h3><table class="tbl compact"><thead><tr><th>파일</th><th>종류</th><th>대상 기간</th><th>등록</th><th></th></tr></thead><tbody>
+    ${recent.map((d) => `<tr><td>${esc(d.fileName)}</td><td>${esc(DOC_TYPES[d.docType] || '')}</td><td>${fmtK(d.periodFrom)} ~ ${fmtK(d.periodTo)}</td><td class="muted">${esc(memberName(d.importedBy))}</td>
+      <td class="nowrap"><button class="btn tiny" data-act="docDownload" data-id="${d.id}" title="${d.hasFile ? '원본 HWPX 내려받기' : '반영된 내용을 텍스트로 내려받기'}">${d.hasFile ? '원본 받기' : '내용 받기'}</button></td></tr>`).join('')}
   </tbody></table></div>` : ''}`;
 }
 
@@ -201,7 +202,7 @@ Object.assign(handlers, {
       const hash = await sha256(buf);
       const blocks = await parseHwpx(buf);
       state.imp = {
-        ...state.imp, hash, blocks, meta: guessMeta(file.name, blocks, today()),
+        ...state.imp, buf, hash, blocks, meta: guessMeta(file.name, blocks, today()),
         dupDoc: state.db.documents.find((d) => d.hash && d.hash === hash) || null,
       };
     } catch (e) {
@@ -292,11 +293,13 @@ Object.assign(handlers, {
     if (state.db.documents.some((d) => d.hash && d.hash === s.hash)) { s.error = '이미 가져온 파일입니다.'; return; }
 
     // 문서를 먼저 저장해서 근거가 문서를 가리키게 한다
-    const doc = await saveRec('documents', {
+    let doc = await saveRec('documents', {
       fileName: s.fileName, docType: s.meta.docType, writtenDate: s.meta.writtenDate, periodFrom: s.meta.periodFrom,
       periodTo: s.meta.periodTo, hash: s.hash, importedAt: new Date().toISOString(), importedBy: meId(),
       extractedText: s.blocks.map((b) => (b.kind === 'para' ? b.text : b.rows.map((r) => r.join(' | ')).join('\n'))).join('\n').slice(0, 30000),
     });
+    // 원본 HWPX를 보관해 두면 [반영 자료]에서 그대로 내려받을 수 있다 (5MB 이하)
+    if (await saveDocFile(doc, s.buf)) doc = await saveRec('documents', { ...doc, hasFile: true, size: s.buf.byteLength });
     const r = { created: 0, linked: 0, completed: 0, progressed: 0,excluded: 0, undated: 0, logs: 0, plans: 0, nexts: 0, noAssignee: 0, changes: 0 };
     const relation = s.meta.docType === 'minutes' ? 'order' : s.meta.docType === 'logs' ? 'log' : 'plan';
     for (const it of s.items) {

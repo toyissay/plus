@@ -1,5 +1,5 @@
 // 앱 상태, 데이터 변경 작업, 화면 공통 도우미.
-import { store, TABLES } from './store.js';
+import { store, TABLES, FILE_TABLE } from './store.js';
 import { realToday, setRefYear, fmtK, isISO } from './dates.js';
 import {
   nextDates, displayStatus, isOverdue, ddayLabel,
@@ -96,7 +96,78 @@ export async function resetSample() {
     await store.clear(t);
     await store.saveMany(t, seed[t] || []);
   }
+  try { await store.clear(FILE_TABLE); } catch (e) { console.warn('원본 파일 테이블을 비우지 못했습니다', e); }
   await reloadAll();
+}
+
+// ── 반영 자료 원본 보관·내려받기 ──
+export const MAX_FILE = 5 * 1024 * 1024;
+function toB64(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+// 원본 저장은 실패해도 가져오기를 막지 않는다. 성공 여부를 돌려준다.
+export async function saveDocFile(doc, buf) {
+  if (!buf || buf.byteLength > MAX_FILE) return false;
+  try {
+    await store.save(FILE_TABLE, { id: doc.id, fileName: doc.fileName, size: buf.byteLength, b64: toB64(buf) });
+    return true;
+  } catch (e) {
+    console.warn('원본 파일 저장 실패', e);
+    return false;
+  }
+}
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+// 원본이 있으면 HWPX 원본을, 없으면(초기 샘플 등) 이 문서에서 반영된 내용을 정리한 텍스트를 내려받는다.
+export async function downloadDoc(id) {
+  const d = docOf(id);
+  if (!d) return;
+  if (d.hasFile) {
+    const f = await store.get(FILE_TABLE, id);
+    if (f?.b64) {
+      const bin = atob(f.b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      saveBlob(new Blob([bytes], { type: 'application/hwp+zip' }), d.fileName);
+      return 'file';
+    }
+  }
+  saveBlob(new Blob(['﻿' + docSummaryText(d)], { type: 'text/plain;charset=utf-8' }), d.fileName.replace(/\.hwpx$/i, '') + ' (반영 내용).txt');
+  return 'text';
+}
+export function docSummaryText(d) {
+  const L = [];
+  L.push(`[반영 자료] ${d.fileName}`);
+  L.push(`작성일 ${d.writtenDate || '-'} / 대상 기간 ${d.periodFrom || '-'} ~ ${d.periodTo || '-'} / 등록 ${(d.importedAt || '').slice(0, 10) || '초기 샘플'}`);
+  L.push('※ 교육·시연용 가상 데이터');
+  const ev = state.db.task_evidence.filter((e) => e.documentId === d.id);
+  if (ev.length) {
+    L.push('', `■ 연결된 업무 (${ev.length}건)`);
+    ev.forEach((e) => { const t = findTask(e.taskId); L.push(`- ${t ? t.title : '(삭제된 업무)'}${t ? ` [${STATUS_LABEL[t.status] || t.status}${t.dueDate ? `, 마감 ${t.dueDate}` : ''}]` : ''}`, `    원문(${e.location || '-'}): ${e.text || ''}`); });
+  }
+  const logs = state.db.daily_logs.filter((l) => l.documentId === d.id);
+  if (logs.length) {
+    L.push('', `■ 실시사항 (${logs.length}건)`);
+    logs.forEach((l) => { const t = l.taskId && findTask(l.taskId); L.push(`- ${l.date} ${memberName(l.assigneeId) || ''}: ${l.content} [${l.result || '-'}]${t ? ` → ${t.title}` : ''}`); });
+  }
+  const plans = state.db.weekly_plans.filter((p) => p.documentId === d.id);
+  if (plans.length) {
+    L.push('', `■ 주간 예정사항 (${plans.length}건)`);
+    plans.forEach((p) => L.push(`- ${p.plannedDate} ${memberName(p.assigneeId) || ''}: ${p.content}`));
+  }
+  if (d.extractedText) L.push('', '■ 원문 텍스트', d.extractedText);
+  else L.push('', '(원본 파일이 보관되어 있지 않은 자료입니다.)');
+  return L.join('\r\n');
 }
 
 // ── 조회 도우미 ──

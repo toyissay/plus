@@ -3,6 +3,8 @@
 import { CONFIG } from './config.js';
 
 export const TABLES = ['members', 'documents', 'tasks', 'task_evidence', 'weekly_plans', 'daily_logs', 'check_requests'];
+// 원본 파일(base64)은 크기가 커서 처음에 모두 읽지 않고, 내려받을 때만 store.get으로 읽는다.
+export const FILE_TABLE = 'document_files';
 
 export function uid() {
   if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
