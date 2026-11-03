@@ -4,7 +4,7 @@ import { mondayOf } from './dates.js';
 import { parseHwpx, sha256 } from './hwpx.js';
 import { guessMeta, extractItems } from './extract.js';
 
-// 샘플 초기화 때 가져오는 순서: 계획 문서 → 회의록(지시사항) → 실시사항(완료·진행 근거)
+// 샘플 초기화 때 가져오는 순서: 계획 문서 → 회의록(지시사항) → 실시사항(지난주 → 이번 주, 완료·진행 근거)
 export const SAMPLE_FILES = [
   '01_연간_부대운영계획.hwpx',
   '04_기타_업무계획.hwpx',
@@ -12,6 +12,7 @@ export const SAMPLE_FILES = [
   '02_주간_부대운영계획.hwpx',
   '03_향후8주_주간예정사항.hwpx',
   '05_지난1주일_실시사항.hwpx',
+  '07_금주_일일실시사항.hwpx',
 ];
 
 export const ctx = () => ({ members: state.db.members, tasks: state.db.tasks, today: today() });
