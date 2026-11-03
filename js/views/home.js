@@ -4,7 +4,7 @@ import { state, today, scopeTasks, esc, memberName, findTask, pendingChanges, ki
 import { addDays, fmtK, HOLIDAYS, dow, weekLabel } from '../dates.js';
 import { summary, weekRange, byDue } from '../rules.js';
 import { IC } from '../icons.js';
-import { summaryStrip, renderPanel, taskItem } from './dashboard.js';
+import { summaryStrip, renderPanel, taskItem, kindLegend } from './dashboard.js';
 
 const DOW = '일월화수목금토';
 
@@ -32,7 +32,7 @@ export function renderHome() {
     const hol = HOLIDAYS[date];
     const cls = ['day', date === T ? 'today' : '', date < T ? 'past' : '', dow(date) === 0 || hol ? 'sun' : dow(date) === 6 ? 'sat' : ''].join(' ');
     const planHtml = dayTasks.map((t) => taskItem(t, T)).join('')
-      + dayPlans.map((p) => `<div class="ri s-plan"><div class="ri-main"><div class="ri-title"><span class="kind k-adhoc">예정</span>${esc(p.content)}</div><div class="ri-meta">${esc(memberName(p.assigneeId) || '담당 미정')} · 주간 예정사항</div></div></div>`).join('');
+      + dayPlans.map((p) => `<div class="ri s-plan kb-plan"><div class="ri-main"><div class="ri-title"><span class="kind k-plan">예정</span>${esc(p.content)}</div><div class="ri-meta">${esc(memberName(p.assigneeId) || '담당 미정')} · 주간 예정사항</div></div></div>`).join('');
     const logHtml = dayLogs.map((l) => {
       const t = l.taskId && findTask(l.taskId);
       const done = l.result === '완료';
@@ -62,6 +62,7 @@ export function renderHome() {
         <button class="btn outline" data-act="goTab" data-tab="dashboard">${IC.calendar} 전체 달력</button>
         <button class="btn teal" data-act="newTask">${IC.plus} 업무 추가</button>
       </div>
+      ${kindLegend({ plan: true })}
       <div class="week-days">${days}</div>
       <p class="hint">예정은 그날 마감인 업무(완료된 업무는 완료일)와 주간 예정사항, 실시는 그날 들어온 실시사항입니다. 마감 없는 지시사항·일정 미정 업무는 오른쪽에서 관리합니다.</p>
     </section>

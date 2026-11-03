@@ -14,7 +14,8 @@ const DOC_SHORT = { annual: '연간계획', weekly: '주간계획', eight: '8주
 const md = (s) => (s ? `${s.slice(5, 7)}.${s.slice(8, 10)}` : '');
 
 // 업무 구분 범례 (달력 위)
-const kindLegend = () => `<div class="kind-legend"><span class="muted">구분</span>${KINDS.map(([k, l]) => `<span class="kind-item"><span class="kind k-${k}">${l}</span><span class="kind-desc">${k === 'order' ? '지휘관 지시사항' : k === 'adhoc' ? '수시 업무' : `${l} 주기 업무`}</span></span>`).join('')}<span class="kind-item muted">칸 왼쪽 색 띠도 같은 구분입니다</span></div>`;
+// plan: 이번 주 화면에는 업무로 등록되지 않은 주간 예정사항(예정)도 나온다
+export const kindLegend = ({ plan = false } = {}) => `<div class="kind-legend"><span class="muted">구분</span>${KINDS.map(([k, l]) => `<span class="kind-item"><span class="kind k-${k}">${l}</span><span class="kind-desc">${k === 'order' ? '지휘관 지시사항' : k === 'adhoc' ? '수시 업무' : `${l} 주기 업무`}</span></span>`).join('')}${plan ? '<span class="kind-item"><span class="kind k-plan">예정</span><span class="kind-desc">주간 예정사항</span></span>' : ''}<span class="kind-item muted">왼쪽 색 띠도 같은 구분입니다</span></div>`;
 
 export function renderDashboard() {
   const T = today();
@@ -180,7 +181,7 @@ export function taskItem(t, T) {
   if (t.status === 'done' && t.completedAt) meta.push(`완료 ${fmtK(t.completedAt)}`);
   const key = od ? 'overdue' : ds;
   return `
-  <div class="ri s-${key}">
+  <div class="ri s-${key} kb-${kindOf(t)}">
     <input type="checkbox" class="chk" data-act="toggleDone" data-id="${t.id}" ${t.status === 'done' ? 'checked' : ''} title="완료 체크" aria-label="완료 체크">
     <div class="ri-main" data-act="openDetail" data-id="${t.id}">
       <div class="ri-title">${kindTag(t)}${esc(t.title)}</div>
