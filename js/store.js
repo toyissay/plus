@@ -84,7 +84,7 @@ const adapter = CONFIG.supabaseUrl && CONFIG.supabaseAnonKey
   ? supabaseAdapter(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey)
   : localAdapter();
 
-function stamp(rec) {
+export function stamp(rec) {
   const now = new Date().toISOString();
   return { ...rec, id: rec.id || uid(), createdAt: rec.createdAt || now, updatedAt: now };
 }

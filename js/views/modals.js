@@ -170,7 +170,7 @@ function settingsForm() {
   </section>
   <section class="sec">
     <h4>샘플 초기화</h4>
-    <p class="hint">모든 데이터를 지우고 가상 시연 데이터로 되돌립니다. 샘플 날짜는 현재 기준일(${fmtK(today(), { year: true })})에 맞춰 다시 배치됩니다. ${store.mode === 'supabase' ? '<b>공유 저장소의 데이터가 모두 바뀌어 다른 사용자에게도 반영됩니다.</b>' : ''}</p>
+    <p class="hint">모든 데이터를 지우고, samples/hwpx 의 샘플 문서 6개를 추천값 그대로 가져와 데이터를 다시 만듭니다. 원본 파일도 [반영 자료]에 보관됩니다. 샘플 문서는 <b>2026-11-03</b> 기준으로 작성되어 있으니 시연 기준일을 그 날짜로 두세요. ${store.mode === 'supabase' ? '<b>공유 저장소의 데이터가 모두 바뀌어 다른 사용자에게도 반영됩니다.</b>' : ''}</p>
     <button class="btn danger" data-act="resetSample">샘플 초기화</button>
   </section>`);
 }
@@ -296,9 +296,10 @@ Object.assign(handlers, {
   },
   resetSample: act(async () => {
     if (!confirm('모든 데이터를 지우고 샘플 데이터로 되돌릴까요? 되돌릴 수 없습니다.')) return;
+    toast('샘플 문서 6개를 가져오는 중입니다…', 'info', 6000);
     await resetSample();
     state.modal = null; state.detailId = null; state.panel = null; state.imp = null;
-    toast('샘플 데이터로 초기화했습니다.', 'ok');
+    toast('샘플 문서 6개로 데이터를 다시 만들었습니다.', 'ok');
   }),
   refresh: act(async () => {
     await reloadAll();

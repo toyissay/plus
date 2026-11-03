@@ -1,5 +1,5 @@
 // 앱 상태, 데이터 변경 작업, 화면 공통 도우미.
-import { store, TABLES, FILE_TABLE } from './store.js';
+import { store, TABLES, FILE_TABLE, stamp } from './store.js';
 import { realToday, setRefYear, fmtK, isISO } from './dates.js';
 import {
   nextDates, displayStatus, isOverdue, ddayLabel,
@@ -91,14 +91,43 @@ export async function loadAll() {
   }
   state.loading = false;
 }
-export async function resetSample() {
-  const seed = buildSeed(today());
+// 샘플 초기화: 구성원만 넣은 빈 상태에서 samples/hwpx 의 샘플 6개를 추천값 그대로 가져와 데이터를 만든다.
+// 가져오는 동안에는 저장을 화면 상태에만 모아 두었다가(defer), 끝나면 저장소를 비우고 한 번에 올린다.
+// dryRun이면 저장소에 쓰지 않고 결과만 돌려준다 (확인용).
+let defer = null;
+export async function resetSample({ dryRun = false } = {}) {
+  const T = today();
+  const seed = buildSeed(T);
+  state.db = Object.fromEntries(TABLES.map((t) => [t, []]));
+  state.db.members = seed.members.map(stamp);
+  defer = { files: [] };
+  let files;
+  const log = [];
+  try {
+    const { importSampleFile, SAMPLE_FILES } = await import('./importer.js');
+    for (const f of SAMPLE_FILES) {
+      const { r, items } = await importSampleFile(f);
+      log.push({ file: f, r, items });
+    }
+    for (const req of seed.requests(state.db.tasks)) await saveRec('check_requests', req);
+  } catch (e) {
+    defer = null;
+    await reloadAll();
+    throw e;
+  }
+  files = defer.files;
+  defer = null;
+  if (dryRun) return { db: state.db, files, log };
   for (const t of TABLES) {
     await store.clear(t);
-    await store.saveMany(t, seed[t] || []);
+    await store.saveMany(t, state.db[t]);
   }
-  try { await store.clear(FILE_TABLE); } catch (e) { console.warn('원본 파일 테이블을 비우지 못했습니다', e); }
+  try {
+    await store.clear(FILE_TABLE);
+    for (const f of files) await store.save(FILE_TABLE, f);
+  } catch (e) { console.warn('원본 파일을 보관하지 못했습니다', e); }
   await reloadAll();
+  return { log };
 }
 
 // ── 반영 자료 원본 보관·내려받기 ──
@@ -112,8 +141,10 @@ function toB64(buf) {
 // 원본 저장은 실패해도 가져오기를 막지 않는다. 성공 여부를 돌려준다.
 export async function saveDocFile(doc, buf) {
   if (!buf || buf.byteLength > MAX_FILE) return false;
+  const rec = { id: doc.id, fileName: doc.fileName, size: buf.byteLength, b64: toB64(buf) };
+  if (defer) { defer.files.push(rec); return true; }
   try {
-    await store.save(FILE_TABLE, { id: doc.id, fileName: doc.fileName, size: buf.byteLength, b64: toB64(buf) });
+    await store.save(FILE_TABLE, rec);
     return true;
   } catch (e) {
     console.warn('원본 파일 저장 실패', e);
@@ -199,14 +230,14 @@ export function outOfLogPeriod(t) {
 
 // ── 저장 ──
 export async function saveRec(table, rec) {
-  const saved = await store.save(table, rec);
+  const saved = defer ? stamp(rec) : await store.save(table, rec);
   const list = state.db[table];
   const i = list.findIndex((x) => x.id === saved.id);
   if (i >= 0) list[i] = saved; else list.push(saved);
   return saved;
 }
 export async function removeRec(table, id) {
-  await store.remove(table, id);
+  if (!defer) await store.remove(table, id);
   state.db[table] = state.db[table].filter((x) => x.id !== id);
 }
 

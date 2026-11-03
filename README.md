@@ -20,7 +20,9 @@ js/rules.js           업무 규칙 §7 (상태 판정, 알림 시점, 다음 �
 js/core.js            상태와 데이터 변경 작업 (완료·완료 취소·실시사항 연결·확인 요청)
 js/hwpx.js            HWPX 읽기 (ZIP → section XML → 문단·표, 병합 셀 처리)
 js/extract.js         문서 종류별 추출 규칙
-js/seed.js            가상 샘플 데이터 (기준일 기준으로 배치)
+js/seed.js            구성원·확인 요청 (나머지 샘플 데이터는 samples/hwpx 를 가져와 만든다)
+js/importer.js        문서 가져오기 처리 (화면 ③과 샘플 초기화가 같이 씀)
+js/hwpxWrite.js       HWPX 만들기 (원본 없는 자료의 정리본)
 js/views/*.js         화면 ①~⑤, 상세 패널, 모달
 supabase/schema.sql   Supabase 테이블·정책
 samples/              샘플 HWPX 생성 스크립트, 생성된 HWPX, 정답표
@@ -38,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File serve.ps1
 2. SQL Editor에서 `supabase/schema.sql`을 실행한다.
 3. Project Settings → API에서 **Project URL**과 **anon public 키**를 복사해 `js/config.js`에 넣는다.
    - service_role 키는 절대 넣지 않는다.
-4. 처음 접속하면 데이터가 비어 있으므로 샘플 데이터가 자동으로 들어간다.
+4. 처음 접속하면 데이터가 비어 있으므로 샘플 데이터가 자동으로 들어간다 (샘플 HWPX 6개를 가져와 만든다).
 - 가져온 HWPX 원본(5MB 이하)은 `document_files` 테이블에 보관되어, 왼쪽 [반영 자료]를 누르면 원본을 내려받는다. 원본이 없는 초기 샘플 자료는 반영된 업무·실시사항을 표로 정리한 HWPX(`js/hwpxWrite.js`로 생성)를 내려받는다.
 
 ## Vercel 배포
@@ -56,10 +58,11 @@ powershell -ExecutionPolicy Bypass -File serve.ps1
 powershell -ExecutionPolicy Bypass -File samples\make_samples.ps1
 ```
 - 기대 결과는 `samples/정답표.md`에 있습니다 (시연 기준일 2026-11-03, 샘플 초기화 직후 기준).
-- 이 샘플은 이 도구의 읽기 규칙에 맞춘 최소 구조 HWPX입니다. 한글 프로그램에서 열리는지는 확인하지 않았습니다. 실제 한글에서 만든 파일로 바꿀 때는 같은 표 머리글(업무명·담당·시작일·마감일·주기 등)과 문장 양식을 지키면 됩니다.
+- 이 샘플은 이 도구의 읽기 규칙에 맞춘 최소 구조 HWPX입니다. 한글 2024에서 열리는 것을 확인했습니다. 실제 한글에서 만든 파일로 바꿀 때는 같은 표 머리글(업무명·담당·시작일·마감일·주기 등)과 문장 양식을 지키면 됩니다.
 
 ## 시연 순서 예시
 1. ⚙ 설정 → 시연 기준일 2026-11-03 → [샘플 초기화]
 2. 이름 "운용과" → 대시보드: 나에게 온 확인 요청에 답변하고, 상태 메뉴에서 진행중을 골라 진행 내용을 적는다
-3. 이름 "지휘관" → 문서 가져오기: `05_지난1주일_실시사항.hwpx` → 원문과 후보를 보며 승인 → [처리 실행]
+3. 이름 "지휘관" → 왼쪽 [반영 자료]에서 `05_지난1주일_실시사항` 원본을 내려받아 보고, 업무 상세의 출처·실시사항과 비교한다
+   (문서 가져오기 검토 화면을 보이려면 샘플을 고쳐 다시 만든 파일이나 새 HWPX를 올린다)
 4. 부서 현황: 완료 미확인 업무에 [확인 요청] → [주간 보고서] → 인쇄
