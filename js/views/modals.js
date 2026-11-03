@@ -1,7 +1,7 @@
 // 모달: 업무 등록·수정, 메모, 확인 요청, 실시사항·예정사항 입력, 설정
 import {
   state, handlers, render, act, today, esc, options, memberOptions, findTask, memberFull, saveRec, newTask,
-  addNote, sendRequest, linkLog, unlinkLog, toast, describeResult, needName, demoDate, setDemoDate,
+  addNote, startProgress, sendRequest, linkLog, unlinkLog, toast, describeResult, needName, demoDate, setDemoDate,
   resetSample, reloadAll, store,
 } from '../core.js';
 import { fmtK, isISO, mondayOf, realToday } from '../dates.js';
@@ -24,6 +24,16 @@ export function renderModal() {
       <p class="muted">${esc(findTask(m.taskId)?.title)}</p>
       <form class="form" data-submit="noteSave"><textarea name="text" rows="3" required placeholder="진행 내용"></textarea>
       <div class="form-actions"><button type="button" class="btn" data-act="closeModal">취소</button><button class="btn primary">추가</button></div></form>`);
+    case 'progress': {
+      const t = findTask(m.taskId);
+      return wrap('진행중으로 변경', `
+      <form class="form" data-submit="progressSave">
+        <div class="kv"><dt>업무</dt><dd>${esc(t?.title)}</dd></div>
+        <label>진행 내용 *<textarea name="text" rows="3" required placeholder="예: 부서별 자료 취합 중, 11.5. 초안 보고 예정"></textarea></label>
+        <p class="hint">진행 내용을 적어야 진행중으로 바뀝니다. 적은 내용은 메모에 남습니다.${t?.status === 'done' ? ' 완료된 업무는 완료가 취소됩니다.' : ''}</p>
+        <div class="form-actions"><button type="button" class="btn" data-act="closeModal">취소</button><button class="btn primary">진행중으로 변경</button></div>
+      </form>`);
+    }
     case 'request': {
       const t = findTask(m.taskId);
       return wrap('진행 확인 요청', `
@@ -46,7 +56,6 @@ export function renderModal() {
 function taskForm(m) {
   const d = m.draft;
   const isDone = d.status === 'done';
-  const statusMap = isDone ? STATUS_LABEL : { todo: '미착수', doing: '진행중' };
   return wrap(d.id ? '업무 수정' : '업무 추가', `
   <form class="form" data-submit="taskSave" id="taskForm">
     <label>업무명 *<input name="title" value="${esc(d.title)}" required autocomplete="off"></label>
@@ -63,10 +72,10 @@ function taskForm(m) {
     <div class="row">
       <label>시작일<input type="date" name="startDate" value="${esc(d.startDate || '')}"></label>
       <label>마감일<input type="date" name="dueDate" value="${esc(d.dueDate || '')}"></label>
-      <label>상태<select name="status" ${isDone ? 'disabled' : ''}>${options(statusMap, d.status || 'todo')}</select></label>
+      <label>상태<input value="${esc(STATUS_LABEL[d.status || 'todo'])}" disabled></label>
     </div>
     <p class="hint">${d.type === 'order' ? '마감일이 없는 지시사항은 지시 후 경과일(D+n)로 관리합니다.' : d.type === 'cycle' ? '완료하면 다음 회차가 자동으로 만들어집니다. 마감일이 없으면 일정 미정으로 두고, 다음 회차는 마감일을 정한 뒤부터 만들어집니다.' : '시작일·마감일을 모두 비우면 "일정 미정"으로 등록됩니다.'}
-    ${isDone ? ' 완료된 업무의 상태는 완료 이력의 [완료 취소]로 바꿉니다.' : ''}</p>
+    ${isDone ? ' 완료된 업무의 상태는 완료 이력의 [완료 취소]로 바꿉니다.' : ' 상태는 업무의 상태 메뉴에서 바꿉니다 (진행중은 진행 내용을 적어야 합니다).'}</p>
     <div class="form-actions"><button type="button" class="btn" data-act="closeModal">취소</button><button class="btn primary">저장</button></div>
   </form>`);
 }
@@ -80,7 +89,7 @@ function readTaskForm(form, draft) {
   if (form.orderedBy) out.orderedBy = v('orderedBy') || null;
   out.startDate = v('startDate') || null;
   out.dueDate = v('dueDate') || null;
-  if (form.status && !form.status.disabled) out.status = v('status') || 'todo';
+  out.status = draft.status || 'todo';
   return out;
 }
 
@@ -198,6 +207,13 @@ Object.assign(handlers, {
     await addNote(findTask(state.modal.taskId), form.text.value.trim());
     state.modal = null;
     toast('메모를 추가했습니다.', 'ok');
+  }),
+  progressSave: act(async (form) => {
+    const text = form.text.value.trim();
+    if (!text) { state.modal.error = '진행 내용을 입력하세요.'; return; }
+    const res = await startProgress(findTask(state.modal.taskId), text);
+    state.modal = null;
+    toast(['진행중으로 바꾸고 진행 내용을 메모에 남겼습니다.', describeResult(res)].join(' '), 'ok');
   }),
   requestModal(el) {
     if (needName()) return;

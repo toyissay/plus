@@ -320,6 +320,8 @@ Object.assign(handlers, {
   setStatus: act(async (el) => {
     const t = findTask(el.dataset.id);
     if (!t) return;
+    // 진행중으로 바꾸려면 진행 내용을 적어야 한다 (모달에서 저장)
+    if (el.value === 'doing') { state.modal = { kind: 'progress', taskId: t.id }; return; }
     if (t.status === 'done' && !confirm(`'${t.title}' 완료를 취소하고 상태를 바꿀까요?`)) return;
     const res = await setStatus(t, el.value);
     if (el.value !== 'done' && t.status === 'done') {

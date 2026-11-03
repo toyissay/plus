@@ -253,6 +253,16 @@ export async function setStatus(t, status) {
   return { task: await saveRec('tasks', { ...t, status }) };
 }
 
+// 직접 진행중으로 바꿀 때는 진행 내용(메모)을 반드시 남긴다.
+export async function startProgress(t, text) {
+  if (!text) throw new Error('진행 내용을 입력하세요.');
+  let res = {};
+  if (t.status === 'done') { res = await uncompleteTask(t); t = findTask(t.id); }
+  const note = { date: today(), at: new Date().toISOString(), authorId: meId(), text, kind: 'progress' };
+  const task = await saveRec('tasks', { ...t, status: 'doing', startedMethod: 'note', notes: [...(t.notes || []), note] });
+  return { ...res, task };
+}
+
 export async function deleteTask(t) {
   for (const e of evidenceOf(t.id)) await removeRec('task_evidence', e.id);
   for (const l of logsOf(t.id)) await saveRec('daily_logs', { ...l, taskId: null });
@@ -324,9 +334,8 @@ export async function sendRequest(t, content) {
     requestedAt: new Date().toISOString(), answer: null, answeredAt: null, answeredBy: null, state: 'pending',
   });
 }
-export async function answerRequest(req, answer, status) {
-  const t = findTask(req.taskId);
-  if (t && status && status !== t.status) await setStatus(t, status);
+// 답변만 남긴다. 업무 상태는 바꾸지 않는다 (진행중은 진행 내용·진행 기록으로만).
+export async function answerRequest(req, answer) {
   return saveRec('check_requests', { ...req, answer, answeredAt: new Date().toISOString(), answeredBy: meId(), state: 'answered' });
 }
 export async function closeRequest(req) {

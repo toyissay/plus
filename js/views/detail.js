@@ -83,7 +83,7 @@ export function renderDetail() {
         <input name="text" placeholder="진행 내용을 적고 Enter" autocomplete="off" required>
         <button class="btn small">추가</button>
       </form>
-      ${notes.length ? notes.map((n) => `<div class="note"><span class="muted">${fmtK(n.date)} ${esc(memberName(n.authorId) || '이름 미선택')}</span> ${esc(n.text)}</div>`).join('') : '<div class="muted">메모가 없습니다.</div>'}
+      ${notes.length ? notes.map((n) => `<div class="note"><span class="muted">${fmtK(n.date)} ${esc(memberName(n.authorId) || '이름 미선택')}</span> ${n.kind === 'progress' ? '<span class="badge blue">진행 내용</span> ' : ''}${esc(n.text)}</div>`).join('') : '<div class="muted">메모가 없습니다.</div>'}
     </section>
 
     <section class="sec">
@@ -96,7 +96,7 @@ export function renderDetail() {
           ${r.state === 'pending' ? `
             <form class="answer-form" data-submit="detailAnswer" data-rid="${r.id}">
               <textarea name="answer" rows="2" placeholder="답변 (예: 11.4까지 제출 예정)" required></textarea>
-              <div class="row-inline"><label>상태 <select name="status">${options(STATUS_LABEL, t.status)}</select></label><button class="btn small primary">답변 등록</button></div>
+              <div class="row-inline"><button class="btn small primary">답변 등록</button></div>
             </form>` : ''}
           ${r.state === 'answered' ? `<button class="btn small" data-act="closeReq" data-rid="${r.id}">처리 완료로 닫기</button>` : ''}
         </div>`).join('') : '<div class="muted">확인 요청이 없습니다.</div>'}
@@ -136,7 +136,7 @@ Object.assign(handlers, {
   detailAnswer: act(async (form) => {
     if (needName()) return;
     const req = state.db.check_requests.find((r) => r.id === form.dataset.rid);
-    await answerRequest(req, form.answer.value.trim(), form.status.value);
+    await answerRequest(req, form.answer.value.trim());
     toast('답변을 등록했습니다.', 'ok');
   }),
   closeReq: act(async (el) => {
