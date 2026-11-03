@@ -6,7 +6,7 @@ export const CYCLE_LABEL = { annual: '연간', quarterly: '분기', monthly: '�
 export const STATUS_LABEL = { todo: '미착수', doing: '진행중', done: '완료' };
 export const DISPLAY_LABEL = { done: '완료', doing: '진행중', notstarted: '미착수', planned: '예정' };
 export const DISPLAY_ICON = { done: '✓', doing: '▶', notstarted: '!', planned: '○' };
-export const METHOD_LABEL = { manual: '직접 체크', log: '실시사항 연결' };
+export const METHOD_LABEL = { manual: '직접 체크', log: '실시사항 연결', doc: '관리대장 반영' };
 
 // §7.6 화면 표시 상태. 날짜 자동 판정은 예정/미착수에만 적용한다.
 export function displayStatus(t, T) {
@@ -73,7 +73,8 @@ export function summary(tasks, T) {
   const openNotStarted = open.filter((t) => !isOverdue(t, T) && displayStatus(t, T) === 'notstarted');
   const carry = tasks.filter((t) => isOverdue(t, T));
   const fresh = tasks.filter((t) => t.status !== 'done' && inRange(t.dueDate, nws, nwe));
-  const undated = tasks.filter((t) => t.status !== 'done' && !t.dueDate);
+  // 마감 없는 지시사항은 일정 미정이 아니라 지시 후 경과일(D+n)로 관리한다 → 지시사항 화면
+  const undated = tasks.filter((t) => t.status !== 'done' && !t.dueDate && t.type !== 'order');
   return { week, done, open, openOverdue, openNotStarted, carry, fresh, undated };
 }
 

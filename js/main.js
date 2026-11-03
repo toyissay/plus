@@ -1,12 +1,13 @@
 // 시작점: 왼쪽 메뉴, 상단 바, 탭 전환, 이벤트 위임
 import {
   state, handlers, setRender, loadAll, setMe, demoDate, today, esc, pendingRequestsFor, sortedMembers, store,
-  memberFull, downloadDoc, toast,
+  memberFull, downloadDoc, toast, staleDays, STALE_DAYS,
 } from './core.js';
 import { isOverdue } from './rules.js';
 import { IC } from './icons.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderHome } from './views/home.js';
+import { renderOrders } from './views/orders.js';
 import { renderTasks } from './views/tasks.js';
 import { renderImport } from './views/import.js';
 import { renderDept, renderReport } from './views/dept.js';
@@ -16,6 +17,7 @@ import { renderModal } from './views/modals.js';
 const NAV = [
   ['home', '이번 주', IC.clipboard],
   ['dashboard', '업무 달력', IC.calendar],
+  ['orders', '지시사항', IC.star],
   ['tasks', '업무 목록', IC.list],
   ['import', '문서 관리', IC.doc],
   ['dept', '누락 점검', IC.checkSquare],
@@ -24,6 +26,7 @@ const NAV = [
 const HERO = {
   home: ['이번 주', ''],
   dashboard: ['계획과 실시를 한눈에', '계획·회의 지시·실시 기록을 연결해 놓친 업무를 확인합니다.'],
+  orders: ['지휘관 지시사항 추적', '마감이 없는 지시사항도 지시 후 경과일(D+n)과 마지막 조치일로 끝까지 관리합니다.'],
   tasks: ['업무 목록', '업무를 직접 등록·수정하고, 완료 이력을 조회·취소합니다.'],
   import: ['문서 관리', 'HWPX 문서에서 업무를 뽑아 원문과 비교해 고친 뒤 등록합니다. 자동으로 확정하지 않습니다.'],
   dept: ['누락 점검', '부서 전체의 완료 미확인 업무와 지시사항 처리 상황을 보고 진행 확인을 요청합니다.'],
@@ -34,13 +37,15 @@ const dotDate = (s) => s.replace(/-/g, '.');
 function renderSide() {
   const pending = pendingRequestsFor(state.me).length;
   const overdue = state.db.tasks.filter((t) => isOverdue(t, today())).length;
-  const badge = { home: pending, dept: overdue };
+  const staleOrders = state.db.tasks.filter((t) => t.type === 'order' && (staleDays(t, today()) ?? 0) >= STALE_DAYS && (state.me === 'all' || t.assigneeId === state.me)).length;
+  const badge = { home: pending, orders: staleOrders, dept: overdue };
+  const badgeTitle = { home: '답변 대기 확인 요청', orders: `${STALE_DAYS}일 넘게 조치 기록이 없는 지시사항`, dept: '부서 완료 미확인' };
   const docs = [...state.db.documents].sort((a, b) => (b.importedAt || '').localeCompare(a.importedAt || '')).slice(0, 8);
   return `
   <aside class="side">
     <div class="side-brand"><div class="side-name">국방이음<span>+</span></div><div class="side-sub">계획·실시 연계형 업무 점검 도구</div></div>
     <nav class="side-nav">${NAV.map(([k, l, ic]) => `
-      <button class="nav ${state.tab === k ? 'on' : ''}" data-act="goTab" data-tab="${k}">${ic}<span>${l}</span>${badge[k] ? `<span class="nav-badge" title="${k === 'home' ? '답변 대기 확인 요청' : '부서 완료 미확인'}">${badge[k]}</span>` : ''}</button>`).join('')}
+      <button class="nav ${state.tab === k ? 'on' : ''}" data-act="goTab" data-tab="${k}">${ic}<span>${l}</span>${badge[k] ? `<span class="nav-badge" title="${badgeTitle[k]}">${badge[k]}</span>` : ''}</button>`).join('')}
     </nav>
     <div class="side-sec">
       <div class="side-sec-head">반영 자료 <span class="muted-inv">${state.db.documents.length}</span></div>
@@ -90,6 +95,7 @@ function renderBody() {
     return `<div class="page"><div class="alert error">데이터를 불러오지 못했습니다: ${esc(state.loadError)}</div><button class="btn primary" data-act="retryLoad">다시 시도</button></div>`;
   }
   switch (state.tab) {
+    case 'orders': return renderOrders();
     case 'tasks': return renderTasks();
     case 'import': return renderImport();
     case 'dept': return renderDept();

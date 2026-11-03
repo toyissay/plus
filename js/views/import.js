@@ -73,6 +73,8 @@ function rowStatus(it) {
   if (!it.assigneeId) out.push('<span class="badge gray">담당 미정</span>');
   if (it.candidates?.some((c) => c.warn)) out.push('<span class="badge orange">후속 조치 주의</span>');
   if (it.manual) out.push('<span class="badge">직접 추가</span>');
+  if (it.docStatus) out.push(it.docStatus === 'done' ? '<span class="badge green" title="처리하면 완료로 반영">대장: 완료</span>' : '<span class="badge blue" title="처리하면 진행중으로 반영">대장: 진행</span>');
+  if (it.actionText) out.push(`<span class="badge gray" title="${esc(it.actionText)}">조치사항 있음</span>`);
   const linked = it.action === 'link' && findTask(it.linkTaskId);
   if (linked && linked.dueDate && it.dueDate && !it.dueIsRange && linked.dueDate !== it.dueDate && linked.status !== 'done') {
     out.push(`<span class="badge orange" title="실행하면 기한 변경 반영 대기로 올라갑니다">기한 변경안 ${fmtK(linked.dueDate)}→${fmtK(it.dueDate)}</span>`);

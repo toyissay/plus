@@ -165,6 +165,19 @@ textarea { resize: vertical; width: 100%; }
 .log-res { flex: none; font-size: 11.5px; font-weight: 800; padding: 2px 6px; border-radius: 5px; background: var(--doing-bg); color: var(--doing); margin-top: 1px; }
 .log-row.done .log-res { background: var(--done-bg); color: var(--done); }
 .log-text { font-weight: 600; }
+/* 지시사항 추적 대장 */
+.o-sum { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; margin-bottom: 14px; }
+.o-sum .sum { cursor: default; }
+.o-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.o-tbl td { vertical-align: top; }
+.o-title { font-weight: 700; cursor: pointer; min-width: 220px; }
+.o-title:hover { color: var(--teal); text-decoration: underline; }
+.o-action { min-width: 220px; max-width: 340px; }
+.oa-text { white-space: normal; }
+.o-btns .btn { margin: 0 2px 4px 0; }
+.dd-badge { display: inline-block; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--log-bg); }
+.dd-badge.orange { background: var(--ns-bg); color: var(--ns); }
+.dd-badge.red { background: var(--od-bg); color: var(--od); }
 .panel-card { padding: 18px 16px; max-height: calc(100vh - 86px); overflow: auto; position: sticky; top: 70px; }
 .cal-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .cal-title { font-size: 24px; font-weight: 800; margin: 0 10px 0 6px; letter-spacing: -.5px; }

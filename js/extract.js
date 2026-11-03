@@ -4,11 +4,12 @@ import { findCandidates, logResult } from './rules.js';
 
 export const DOC_TYPES = {
   annual: '연간 부대운영계획', weekly: '주간 부대운영계획', eight: '향후 8주 주간 예정사항',
-  etc: '기타 업무 계획', logs: '지난 1주일 실시사항', minutes: '회의록',
+  etc: '기타 업무 계획', logs: '지난 1주일 실시사항', minutes: '회의록', orderlog: '지휘관 지시사항 관리대장',
 };
 export const DOC_USE = {
   annual: '연간·분기·월간 주기 업무 후보', weekly: '이번 주 업무와 주간 예정사항', eight: '다가오는 업무와 준비 업무 후보',
   etc: '수시 업무 후보', logs: '일일 실시사항 + 완료 근거', minutes: '지휘관 지시사항 후보',
+  orderlog: '지시사항 + 대장의 완료여부·조치사항 반영',
 };
 
 // ── 날짜 읽기 ──
@@ -22,14 +23,20 @@ function inferYear(m, d, ref) {
   return best;
 }
 const FULL_RE = /(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})\s*[.일]?/g;
+// 연도를 두 자리로 쓴 날짜: "26.10.31." → 2026-10-31 (세 마디가 모두 있을 때만)
+const YY_RE = /(?<![\d.])(\d{2})\s*\.\s*(\d{1,2})\s*\.\s*(\d{1,2})(?!\d)\s*\.?/g;
 const MD_RE = /(?<![\d.])(\d{1,2})\s*(?:\.|\/|월)\s*(\d{1,2})(?!\d)\s*[.일]?/g;
 export function parseDates(text, ref) {
   const found = [];
-  const masked = (text || '').replace(FULL_RE, (m, y, mo, d, off) => {
-    const v = makeDate(+y, +mo, +d);
-    if (v) found.push({ v, i: off });
+  const mask = (re, fn) => (s) => s.replace(re, (m, ...g) => {
+    const off = g[g.length - 2];
+    const v = fn(...g);
+    if (!v) return m;
+    found.push({ v, i: off });
     return ' '.repeat(m.length);
   });
+  const masked = mask(YY_RE, (y, mo, d) => makeDate(2000 + +y, +mo, +d))(
+    mask(FULL_RE, (y, mo, d) => makeDate(+y, +mo, +d))(text || ''));
   masked.replace(MD_RE, (m, mo, d, off) => {
     const v = inferYear(+mo, +d, ref);
     if (v) found.push({ v, i: off });
@@ -75,6 +82,7 @@ export function cycleOf(text) {
 // ── 문서 종류·작성일·대상 기간 추정 (사용자가 확인·수정한다) ──
 export function guessDocType(fileName, blocks) {
   const head = [fileName, ...blocks.filter((b) => b.kind === 'para').slice(0, 3).map((b) => b.text)].join(' ');
+  if (/지시\s*사항\s*(관리|대장|추적)|관리\s*대장/.test(head)) return 'orderlog';
   if (/회의록/.test(head)) return 'minutes';
   if (/실시\s*사항|실시\s*결과|실적\s*보고/.test(head)) return 'logs';
   if (/8\s*주|향후/.test(head)) return 'eight';
@@ -90,6 +98,11 @@ export function guessMeta(fileName, blocks, today) {
     if (/(작성|일\s*시|일\s*자|회의)/.test(p.text)) { const d = parseDates(p.text, today)[0]; if (d) { writtenDate = d; break; } }
   }
   if (!writtenDate) for (const p of paras) { const m = p.text.match(FULL_RE); if (m) { writtenDate = parseDates(m[0], today)[0]; break; } }
+  // 관리대장은 작성일이 따로 없는 경우가 많다 → 표에 적힌 가장 늦은 날짜(마지막으로 적은 날)
+  if (!writtenDate && docType === 'orderlog') {
+    const ds = blocks.filter((b) => b.kind === 'table').flatMap((b) => b.rows.flat()).flatMap((c) => parseDates(c, today)).sort();
+    writtenDate = ds[ds.length - 1] || null;
+  }
   writtenDate ||= today;
   let periodFrom = null;
   let periodTo = null;
@@ -125,6 +138,7 @@ function refDate(meta) {
 const COLS = [
   ['orderDate', ['지시일자', '지시일']], ['orderedBy', ['지시자', '지시관']], ['cycle', ['주기']], ['week', ['주차']],
   ['assignee', ['담당자', '담당관', '담당', '실무자', '처리자']], ['start', ['시작일', '시작', '착수일', '착수']],
+  ['status', ['완료여부', '진행상태', '처리상태', '상태']], ['action', ['조치사항', '조치내용', '조치결과', '조치']],
   ['due', ['마감일', '마감', '기한', '완료일', '완료예정', '예정일', '일자', '날짜', '일시', '기간']],
   ['result', ['결과', '실적']], ['note', ['비고']], ['kind', ['구분', '유형']],
   ['title', ['업무명', '업무내용', '예정사항', '실시사항', '실시내용', '지시내용', '내용', '업무', '과제', '항목', '지시사항']],
@@ -171,6 +185,20 @@ function fromTable(tb, meta, ctx, kind, ref) {
 
     if (kind === 'log') {
       out.push({ kind: 'log', date: dueDate || startDate, assigneeId, content: title, result: logResult(`${cell('result') || ''} ${title}`), location, raw: rowText });
+      continue;
+    }
+    // 지시사항 관리대장: "일자"는 지시일이고 마감은 보통 없다. 완료여부·조치사항을 함께 넘긴다.
+    if (meta.docType === 'orderlog') {
+      const st = cell('status').replace(/\s+/g, '');
+      out.push({
+        kind, type: 'order', cycle: null, title, assigneeId, startDate: null,
+        dueDate: map.orderDate != null ? dueDate : null, dueIsRange: false,
+        orderDate: parseDates(cell('orderDate') || dueCell, ref)[0] || meta.writtenDate,
+        orderedBy: cell('orderedBy') || '지휘관',
+        docStatus: /완료|종결|조치완료/.test(st) ? 'done' : st ? 'doing' : null,
+        actionText: cell('action') || null,
+        location, raw: rowText,
+      });
       continue;
     }
     const cycle = cycleOf(cell('cycle') || cell('kind')) || cycleOf(title);

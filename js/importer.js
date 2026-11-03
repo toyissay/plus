@@ -1,5 +1,5 @@
 // 문서 가져오기 처리 (화면 ③의 [처리 실행]과 [샘플 초기화]가 같이 쓴다).
-import { state, today, findTask, saveRec, newTask, linkLog, proposeChange, saveDocFile, meId } from './core.js';
+import { state, today, findTask, saveRec, newTask, linkLog, proposeChange, saveDocFile, meId, completeTask } from './core.js';
 import { mondayOf } from './dates.js';
 import { parseHwpx, sha256 } from './hwpx.js';
 import { guessMeta, extractItems } from './extract.js';
@@ -9,6 +9,7 @@ export const SAMPLE_FILES = [
   '01_연간_부대운영계획.hwpx',
   '04_기타_업무계획.hwpx',
   '06_주간업무_회의록.hwpx',
+  '지휘관지시사항관리.hwpx',
   '02_주간_부대운영계획.hwpx',
   '03_향후8주_주간예정사항.hwpx',
   '05_지난1주일_실시사항.hwpx',
@@ -70,6 +71,7 @@ export async function applyImport({ fileName, hash, buf, blocks, meta, items }) 
         r.changes++;
       }
     }
+    if (task && (it.docStatus || it.actionText)) task = await applyDocStatus(task, it, meta, r);
     if (task) await saveRec('task_evidence', { taskId: task.id, documentId: doc.id, location: it.location, text: it.raw, relation });
     if (it.kind === 'plan') {
       const date = it.dueDate || it.startDate;
@@ -78,6 +80,26 @@ export async function applyImport({ fileName, hash, buf, blocks, meta, items }) 
     }
   }
   return { doc, r };
+}
+
+// 지시사항 관리대장의 완료여부·조치사항을 업무에 반영한다.
+// 완료 → 대장 작성일로 완료, 진행 → 미착수였다면 진행중(진행 내용 메모를 반드시 남김), 조치사항 → 진행 내용 메모.
+async function applyDocStatus(task, it, meta, r) {
+  const note = (text) => ({ date: meta.writtenDate, at: new Date().toISOString(), authorId: meId(), text, kind: 'progress' });
+  const notes = [...(task.notes || [])];
+  if (it.actionText && !notes.some((n) => n.text.includes(it.actionText))) notes.push(note(`조치사항(관리대장): ${it.actionText}`));
+  if (it.docStatus === 'done' && task.status !== 'done') {
+    const saved = await saveRec('tasks', { ...task, notes });
+    const res = await completeTask(saved, { date: meta.writtenDate, method: 'doc' });
+    r.completed++;
+    return res.task;
+  }
+  if (it.docStatus === 'doing' && task.status === 'todo') {
+    if (!it.actionText) notes.push(note('지시사항 관리대장에 "진행"으로 기록됨'));
+    r.progressed++;
+    return saveRec('tasks', { ...task, notes, status: 'doing', startedMethod: 'doc' });
+  }
+  return notes.length !== (task.notes || []).length ? saveRec('tasks', { ...task, notes }) : task;
 }
 
 // 샘플 HWPX 한 개를 사람이 검토 없이 추천값 그대로 가져온다.

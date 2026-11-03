@@ -1,6 +1,6 @@
 // 앱 상태, 데이터 변경 작업, 화면 공통 도우미.
 import { store, TABLES, FILE_TABLE, stamp } from './store.js';
-import { realToday, setRefYear, fmtK, isISO } from './dates.js';
+import { realToday, setRefYear, fmtK, isISO, diffDays } from './dates.js';
 import {
   nextDates, displayStatus, isOverdue, ddayLabel,
   DISPLAY_LABEL, DISPLAY_ICON, TYPE_LABEL, CYCLE_LABEL, STATUS_LABEL,
@@ -31,6 +31,7 @@ export const state = {
   mgmt: { view: 'open', type: '', assignee: '', status: '', from: '', to: '' },
   deptWeek: null,
   reportWeek: null, // 주간 보고서에서 고른 주 (월요일). null이면 기준일이 속한 주
+  orders: { view: 'open', assignee: '' }, // 지시사항 추적 화면 보기 조건
 
   collapsed: { undated: true, others: true },
 };
@@ -216,6 +217,21 @@ export const memberFull = (id) => { const m = member(id); return m ? [m.name, m.
 export const docOf = (id) => state.db.documents.find((d) => d.id === id);
 export const evidenceOf = (taskId) => state.db.task_evidence.filter((e) => e.taskId === taskId);
 export const logsOf = (taskId) => state.db.daily_logs.filter((l) => l.taskId === taskId);
+// 지시사항 추적: 마지막 조치 = 메모(진행 내용·조치사항)와 연결된 실시사항 중 가장 늦은 것
+export function lastAction(t) {
+  const list = [
+    ...(t.notes || []).map((n) => ({ date: n.date, text: n.text, by: n.authorId })),
+    ...logsOf(t.id).map((l) => ({ date: l.date, text: l.content, by: l.assigneeId })),
+  ].filter((x) => x.date).sort((a, b) => a.date.localeCompare(b.date));
+  return list[list.length - 1] || null;
+}
+// 미결 지시사항이 조치 없이 지난 날수 (마지막 조치가 없으면 지시일부터). 이 값 이상이면 "조치 없음"으로 표시한다.
+export const STALE_DAYS = 7;
+export function staleDays(t, T) {
+  if (t.status === 'done') return null;
+  const base = lastAction(t)?.date || t.orderDate || (t.createdAt || '').slice(0, 10);
+  return isISO(base) ? diffDays(T, base) : null;
+}
 export const requestsOf = (taskId) => state.db.check_requests.filter((r) => r.taskId === taskId)
   .sort((a, b) => (b.requestedAt || '').localeCompare(a.requestedAt || ''));
 export const scopeTasks = () => (state.me === 'all' ? state.db.tasks : state.db.tasks.filter((t) => t.assigneeId === state.me));
@@ -294,10 +310,10 @@ export async function setStatus(t, status) {
 // 직접 진행중으로 바꿀 때는 진행 내용(메모)을 반드시 남긴다.
 export async function startProgress(t, text) {
   if (!text) throw new Error('진행 내용을 입력하세요.');
-  let res = {};
+  let res = { wasDoing: t.status === 'doing' };
   if (t.status === 'done') { res = await uncompleteTask(t); t = findTask(t.id); }
   const note = { date: today(), at: new Date().toISOString(), authorId: meId(), text, kind: 'progress' };
-  const task = await saveRec('tasks', { ...t, status: 'doing', startedMethod: 'note', notes: [...(t.notes || []), note] });
+  const task = await saveRec('tasks', { ...t, status: 'doing', startedMethod: t.startedMethod || 'note', notes: [...(t.notes || []), note] });
   return { ...res, task };
 }
 

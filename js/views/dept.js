@@ -155,7 +155,7 @@ export function renderReport() {
       <div class="sheet-sum">완료 ${doneThisWeek.length} · 진행중 ${doing.length} · 미착수 ${notStarted.length} · <b>완료 미확인 ${overdue.length}</b> · 다음 주 예정 ${nextTasks.length + nextPlans.length}</div>
       ${R !== T ? `<p class="muted">※ 지난 주 보고서입니다. 완료 미확인은 ${fmtK(we)} 기준으로, 업무 상태는 현재 상태로 표시합니다.</p>` : ''}
       <h3>1. ${thisWeek ? '이번 주' : '해당 주'} 완료</h3>
-      ${list(doneThisWeek, [['업무', title], ['담당', who], ['완료일', (t) => fmtK(t.completedAt)], ['방법', (t) => (t.completedMethod === 'log' ? '실시사항' : '직접')]])}
+      ${list(doneThisWeek, [['업무', title], ['담당', who], ['완료일', (t) => fmtK(t.completedAt)], ['방법', (t) => (t.completedMethod === 'log' ? '실시사항' : t.completedMethod === 'doc' ? '관리대장' : '직접')]])}
       <h3>2. 진행중</h3>
       ${list(doing, [['업무', title], ['담당', who], ['마감', (t) => fmtK(t.dueDate) || '—'], ['최근 메모', (t) => esc((t.notes || []).at(-1)?.text || '')]])}
       <h3>3. 미착수 (${thisWeek ? '이번 주' : '해당 주'} 마감)</h3>

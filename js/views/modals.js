@@ -26,12 +26,13 @@ export function renderModal() {
       <div class="form-actions"><button type="button" class="btn" data-act="closeModal">취소</button><button class="btn primary">추가</button></div></form>`);
     case 'progress': {
       const t = findTask(m.taskId);
-      return wrap('진행중으로 변경', `
+      const already = t?.status === 'doing';
+      return wrap(already ? '조치 입력' : '진행중으로 변경', `
       <form class="form" data-submit="progressSave">
         <div class="kv"><dt>업무</dt><dd>${esc(t?.title)}</dd></div>
-        <label>진행 내용 *<textarea name="text" rows="3" required placeholder="예: 부서별 자료 취합 중, 11.5. 초안 보고 예정"></textarea></label>
-        <p class="hint">진행 내용을 적어야 진행중으로 바뀝니다. 적은 내용은 메모에 남습니다.${t?.status === 'done' ? ' 완료된 업무는 완료가 취소됩니다.' : ''}</p>
-        <div class="form-actions"><button type="button" class="btn" data-act="closeModal">취소</button><button class="btn primary">진행중으로 변경</button></div>
+        <label>${already ? '조치·진행 내용' : '진행 내용'} *<textarea name="text" rows="3" required placeholder="예: 부서별 자료 취합 중, 11.5. 초안 보고 예정"></textarea></label>
+        <p class="hint">${already ? '적은 내용은 진행 내용 메모로 남고, 마지막 조치일이 오늘로 바뀝니다.' : '진행 내용을 적어야 진행중으로 바뀝니다. 적은 내용은 메모에 남습니다.'}${t?.status === 'done' ? ' 완료된 업무는 완료가 취소됩니다.' : ''}</p>
+        <div class="form-actions"><button type="button" class="btn" data-act="closeModal">취소</button><button class="btn primary">${already ? '조치 저장' : '진행중으로 변경'}</button></div>
       </form>`);
     }
     case 'request': {
@@ -170,7 +171,7 @@ function settingsForm() {
   </section>
   <section class="sec">
     <h4>샘플 초기화</h4>
-    <p class="hint">모든 데이터를 지우고, samples/hwpx 의 샘플 문서 7개를 추천값 그대로 가져와 데이터를 다시 만듭니다. 원본 파일도 [반영 자료]에 보관됩니다. 샘플 문서는 <b>2026-11-03</b> 기준으로 작성되어 있으니 시연 기준일을 그 날짜로 두세요. ${store.mode === 'supabase' ? '<b>공유 저장소의 데이터가 모두 바뀌어 다른 사용자에게도 반영됩니다.</b>' : ''}</p>
+    <p class="hint">모든 데이터를 지우고, samples/hwpx 의 샘플 문서 8개를 추천값 그대로 가져와 데이터를 다시 만듭니다. 원본 파일도 [반영 자료]에 보관됩니다. 샘플 문서는 <b>2026-11-03</b> 기준으로 작성되어 있으니 시연 기준일을 그 날짜로 두세요. ${store.mode === 'supabase' ? '<b>공유 저장소의 데이터가 모두 바뀌어 다른 사용자에게도 반영됩니다.</b>' : ''}</p>
     <button class="btn danger" data-act="resetSample">샘플 초기화</button>
   </section>`);
 }
@@ -213,7 +214,7 @@ Object.assign(handlers, {
     if (!text) { state.modal.error = '진행 내용을 입력하세요.'; return; }
     const res = await startProgress(findTask(state.modal.taskId), text);
     state.modal = null;
-    toast(['진행중으로 바꾸고 진행 내용을 메모에 남겼습니다.', describeResult(res)].join(' '), 'ok');
+    toast([res.wasDoing ? '조치 내용을 메모에 남겼습니다.' : '진행중으로 바꾸고 진행 내용을 메모에 남겼습니다.', describeResult(res)].join(' '), 'ok');
   }),
   requestModal(el) {
     if (needName()) return;
@@ -296,10 +297,10 @@ Object.assign(handlers, {
   },
   resetSample: act(async () => {
     if (!confirm('모든 데이터를 지우고 샘플 데이터로 되돌릴까요? 되돌릴 수 없습니다.')) return;
-    toast('샘플 문서 7개를 가져오는 중입니다…', 'info', 6000);
+    toast('샘플 문서 8개를 가져오는 중입니다…', 'info', 6000);
     await resetSample();
     state.modal = null; state.detailId = null; state.panel = null; state.imp = null;
-    toast('샘플 문서 7개로 데이터를 다시 만들었습니다.', 'ok');
+    toast('샘플 문서 8개로 데이터를 다시 만들었습니다.', 'ok');
   }),
   refresh: act(async () => {
     await reloadAll();

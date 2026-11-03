@@ -2,7 +2,7 @@
 import {
   state, handlers, render, act, today, scopeTasks, esc, memberName, findTask, statusChip, dueText, docOf,
   statusSelect, pendingRequestsFor, completeTask, uncompleteTask, setStatus, describeResult, toast,
-  pendingChanges, applyChange, holdChange, KINDS, KIND_LABEL, kindOf, kindTag,
+  pendingChanges, applyChange, holdChange, KINDS, KIND_LABEL, kindOf, kindTag, staleDays, STALE_DAYS,
 } from '../core.js';
 import { addDays, fmtK, fmtTime, lastDayOfMonth, mondayOf, pad, HOLIDAYS, dow, diffDays, isoWeek, weekLabel } from '../dates.js';
 import {
@@ -172,6 +172,8 @@ export function taskItem(t, T) {
   if (state.me === 'all' || t.assigneeId !== state.me) meta.push(esc(memberName(t.assigneeId) || '담당 미정'));
   if (t.type === 'order') {
     meta.push(`지시 후 <b class="dd">D+${orderElapsed(t, T) ?? '?'}</b>`);
+    const sd = staleDays(t, T);
+    if (sd != null && sd >= STALE_DAYS) meta.push(`<span class="badge red">조치 없음 ${sd}일</span>`);
     if (t.dueDate && t.status !== 'done') {
       const n = diffDays(t.dueDate, T);
       meta.push(n < 0 ? `<span class="badge red">마감 경과 ${ddayLabel(t.dueDate, T)}</span>`
@@ -260,7 +262,10 @@ export function renderPanel(tasks, T, s, changes, { home = false } = {}) {
     add(g.thisWeek.length, () => pcard('week', 'plain', IC.calendar, '이번 주 마감', list(g.thisWeek), { count: g.thisWeek.length }), '이번 주 마감');
   }
   add(g.alerts.length, () => pcard('alerts', 'plain', IC.refresh, '알림 시점이 된 주기 업무', list(g.alerts), { count: g.alerts.length }), '알림 주기 업무');
-  add(g.orders.length, () => pcard('orders', 'gold', IC.star, '미완료 지시사항', list(g.orders), { count: g.orders.length }), '지시사항');
+  add(g.orders.length, () => pcard('orders', 'gold', IC.star, '미결 지시사항 (오래된 순)', list(g.orders), {
+    count: g.orders.length,
+    foot: `<div class="pcard-foot"><button class="btn outline block" data-act="goTab" data-tab="orders">${IC.star} 지시사항 추적 대장 보기</button></div>`,
+  }), '지시사항');
   add(g.undated.length, () => pcard('undated', 'gray', IC.clock, `일정 미정 ${g.undated.length}건`, list(g.undated), { collapsible: true }), '일정 미정');
   add(g.others.length, () => pcard('others', 'gray', IC.list, `그 밖의 업무 ${g.others.length}건`, list(g.others), { collapsible: true }), '그 밖의 업무');
   return `<div class="panel-head"><h2>${home ? '먼저 확인할 것' : '이번 주 확인사항'}</h2><span class="muted small">${fmtK(weekRange(T).ws)} ~ ${fmtK(weekRange(T).we)}</span></div>`
