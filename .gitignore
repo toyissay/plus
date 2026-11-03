@@ -1,0 +1,6 @@
+# 로컬 미리보기 설정
+.claude/
+# OS 파일
+Thumbs.db
+desktop.ini
+.DS_Store
