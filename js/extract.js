@@ -1,6 +1,6 @@
 // 문서 → 업무 후보 추출 (PRD §5 기능 1-1). 합의한 샘플 양식에 맞춘 규칙이며, 결과는 항상 사람이 검토한다.
 import { makeDate, mondayOf, addDays, diffDays, isISO } from './dates.js';
-import { findCandidates, isProgressText, isCompletionText } from './rules.js';
+import { findCandidates, logResult } from './rules.js';
 
 export const DOC_TYPES = {
   annual: '연간 부대운영계획', weekly: '주간 부대운영계획', eight: '향후 8주 주간 예정사항',
@@ -170,7 +170,7 @@ function fromTable(tb, meta, ctx, kind, ref) {
     if (dueIsRange) { startDate ||= dueDates[0]; dueDate = dueDates[dueDates.length - 1]; } else dueDate = dueDates[0] || null;
 
     if (kind === 'log') {
-      out.push({ kind: 'log', date: dueDate || startDate, assigneeId, content: title, result: cell('result'), location, raw: rowText });
+      out.push({ kind: 'log', date: dueDate || startDate, assigneeId, content: title, result: logResult(`${cell('result') || ''} ${title}`), location, raw: rowText });
       continue;
     }
     const cycle = cycleOf(cell('cycle') || cell('kind')) || cycleOf(title);
@@ -205,10 +205,9 @@ function logsFromParas(paras, meta, ctx, ref) {
     let content = colon >= 0 ? text.slice(colon + 1) : stripMember(stripDates(text), ctx.members);
     content = content.replace(BULLET_RE, '').replace(/\s+/g, ' ').trim();
     if (!content) continue;
-    const progress = isProgressText(content);
     out.push({
       kind: 'log', date: dates[0] || cur, assigneeId: mid, content,
-      result: progress ? '진행' : isCompletionText(content) ? '완료' : '',
+      result: logResult(content),
       location: `${p.index + 1}번째 문단`, raw: text,
     });
   }
@@ -262,8 +261,9 @@ export function suggest(it, ctx) {
   if (it.kind === 'log') {
     it.candidates = findCandidates({ text: it.content, date: it.date, assigneeId: it.assigneeId }, ctx.tasks.filter((t) => t.status !== 'done'), ctx.today);
     const best = it.candidates[0];
-    const ok = best && best.score >= 0.6 && !best.warn && isCompletionText(it.content) && !isProgressText(it.content);
-    it.action = ok ? 'complete' : 'logonly';
+    // 관련 업무가 있으면 연결한다. "완료" 기록이면 완료, 아니면(또는 결과보고 경고가 있으면) 진행중으로.
+    const ok = best && best.score >= 0.6;
+    it.action = !ok ? 'logonly' : it.result === '완료' && !best.warn ? 'complete' : 'progress';
     it.linkTaskId = ok ? best.taskId : null;
     it.suggested = !!ok;
   } else {
@@ -296,7 +296,7 @@ export function manualItem(text, location, meta, ctx) {
   const kind = meta.docType === 'logs' ? 'log' : (meta.docType === 'weekly' || meta.docType === 'eight') ? 'plan' : 'task';
   const ds = parseDates(text, ref);
   const assigneeId = matchMember(text, ctx.members);
-  if (kind === 'log') return suggest({ kind, date: ds[0] || null, assigneeId, content: cleanTitle(stripMember(stripDates(text), ctx.members)), result: '', location, raw: text, manual: true }, ctx);
+  if (kind === 'log') return suggest({ kind, date: ds[0] || null, assigneeId, content: cleanTitle(stripMember(stripDates(text), ctx.members)), result: logResult(text), location, raw: text, manual: true }, ctx);
   const type = meta.docType === 'minutes' ? 'order' : 'adhoc';
   return suggest({
     kind, type, cycle: null, title: cleanTitle(stripDates(text)), assigneeId, startDate: null, dueDate: ds[ds.length - 1] || null,

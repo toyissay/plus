@@ -164,7 +164,8 @@ export async function uncompleteTask(t) {
     ...t, status: t.prevStatus && t.prevStatus !== 'done' ? t.prevStatus : 'todo',
     completedAt: null, completedMethod: null, completedBy: null,
   });
-  for (const log of logsOf(t.id)) await saveRec('daily_logs', { ...log, taskId: null });
+  // 완료 근거였던 실시사항만 연결을 푼다. 진행 기록은 그대로 둔다.
+  for (const log of logsOf(t.id).filter(isDoneLog)) await saveRec('daily_logs', { ...log, taskId: null });
   const next = state.db.tasks.find((x) => x.prevTaskId === t.id);
   const out = { task };
   if (next) {
@@ -194,13 +195,16 @@ export async function addNote(t, text) {
   return saveRec('tasks', { ...t, notes });
 }
 
-// §7.8 실시사항 ↔ 업무 연결. 연결하면 그 업무를 실시 일자로 완료 처리한다.
+// §7.8 실시사항 ↔ 업무 연결. 결과가 "완료"인 기록은 그 업무를 실시 일자로 완료 처리하고,
+// "진행" 기록은 미착수 업무를 진행중으로 바꾼다 (완료로 만들지 않는다).
+export const isDoneLog = (log) => log.result === '완료';
 export async function linkLog(log, taskId) {
   if (log.taskId && log.taskId !== taskId) log = (await unlinkLog(log)).log;
   const saved = await saveRec('daily_logs', { ...log, taskId });
   const t = findTask(taskId);
   let res = {};
-  if (t && t.status !== 'done') res = await completeTask(t, { date: log.date, method: 'log' });
+  if (t && isDoneLog(saved) && t.status !== 'done') res = await completeTask(t, { date: log.date, method: 'log' });
+  else if (t && !isDoneLog(saved) && t.status === 'todo') res = { task: await saveRec('tasks', { ...t, status: 'doing', startedMethod: 'log' }), started: true };
   if (t && log.documentId && !evidenceOf(t.id).some((e) => e.documentId === log.documentId && e.relation === 'log')) {
     await saveRec('task_evidence', { taskId: t.id, documentId: log.documentId, location: log.location || '', text: log.raw || log.content, relation: 'log' });
   }
@@ -210,7 +214,9 @@ export async function unlinkLog(log) {
   const t = findTask(log.taskId);
   const saved = await saveRec('daily_logs', { ...log, taskId: null });
   let res = {};
-  if (t && t.status === 'done' && t.completedMethod === 'log' && !logsOf(t.id).length) res = await uncompleteTask(t);
+  const left = t ? logsOf(t.id) : [];
+  if (t && t.status === 'done' && t.completedMethod === 'log' && !left.some(isDoneLog)) res = await uncompleteTask(t);
+  else if (t && t.status === 'doing' && t.startedMethod === 'log' && !left.length) res = { task: await saveRec('tasks', { ...t, status: 'todo', startedMethod: null }), stopped: true };
   return { log: saved, ...res };
 }
 export async function deleteLog(log) {
@@ -259,6 +265,8 @@ export async function closeRequest(req) {
 // 결과 알림 문구 (다음 회차 생성·삭제 안내)
 export function describeResult(res) {
   const out = [];
+  if (res?.started) out.push('업무를 진행중으로 바꿨습니다.');
+  if (res?.stopped) out.push('진행 기록이 없어져 업무를 미착수로 되돌렸습니다.');
   if (res?.next) out.push(`다음 회차(${fmtK(res.next.dueDate)} 마감)를 자동 생성했습니다.`);
   if (res?.removedNext) out.push('자동 생성했던 다음 회차를 함께 지웠습니다.');
   if (res?.keptNext) out.push('다음 회차는 이미 손댄 상태라 남겨 두었습니다. 필요하면 직접 지우세요.');

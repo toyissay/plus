@@ -140,7 +140,9 @@ export function followUpWarning(taskTitle, text) {
   return null;
 }
 export const isProgressText = (s) => /(작성\s*중|진행\s*중|준비\s*중|검토\s*중|추진\s*중|취합\s*중|협의|예정|일부|착수|초안|진행)/.test(s || '');
-export const isCompletionText = (s) => /(완료|제출|실시|마침|종료|보고함|시행|처리|개최|확인)/.test(s || '');
+export const isCompletionText = (s) => /완료/.test(s || '');
+// 실시사항 결과: "완료"라고 적혀 있고 진행 표현(초안·작성 중 등)이 없을 때만 완료, 그 밖의 조치 기록은 진행.
+export const logResult = (s) => (isCompletionText(s) && !isProgressText(s) ? '완료' : '진행');
 
 export function findCandidates({ text, date, assigneeId }, pool, T, limit = 3) {
   const out = [];

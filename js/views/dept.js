@@ -114,7 +114,7 @@ export function renderDept() {
             <td class="nowrap"><button class="btn tiny" data-act="logModal" data-id="${l.id}">수정</button> <button class="btn tiny danger" data-act="logDelete" data-id="${l.id}">삭제</button></td></tr>`;
           }).join('') || '<tr><td colspan="6" class="empty">없음</td></tr>'}
           </tbody></table></div>
-          <p class="hint">★는 날짜·업무명이 비슷한 연결 후보입니다. 업무를 연결하면 그 업무가 실시 일자로 완료됩니다. 진행 과정만 적은 기록은 연결하지 마세요.</p>
+          <p class="hint">★는 날짜·업무명이 비슷한 연결 후보입니다. 결과가 "완료"인 기록을 연결하면 그 업무가 실시 일자로 완료되고, "진행" 기록을 연결하면 진행중이 됩니다.</p>
         </div>
       </div>
     </section>
@@ -187,8 +187,9 @@ Object.assign(handlers, {
       return;
     }
     const t = findTask(taskId);
-    if (!confirm(`'${t.title}' 업무를 ${fmtK(log.date)} 실시로 완료 처리합니다. 맞습니까?`)) return;
+    const done = log.result === '완료';
+    if (!confirm(done ? `'${t.title}' 업무를 ${fmtK(log.date)} 실시로 완료 처리합니다. 맞습니까?` : `'${t.title}' 업무에 진행 기록으로 연결합니다. (완료 처리하지 않음) 맞습니까?`)) { render(); return; }
     const res = await linkLog(log, taskId);
-    toast([`'${t.title}' 완료 처리했습니다.`, describeResult(res)].join(' '), 'ok');
+    toast([done ? `'${t.title}' 완료 처리했습니다.` : `'${t.title}'에 진행 기록으로 연결했습니다.`, describeResult(res)].join(' '), 'ok');
   }),
 });

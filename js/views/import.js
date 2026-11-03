@@ -4,14 +4,14 @@ import {
   saveRec, newTask, linkLog, toast, meId, proposeChange,
 } from '../core.js';
 import { fmtK, mondayOf, isISO } from '../dates.js';
-import { TYPE_LABEL, CYCLE_LABEL, byDue } from '../rules.js';
+import { TYPE_LABEL, CYCLE_LABEL, byDue, logResult } from '../rules.js';
 import { parseHwpx, sha256 } from '../hwpx.js';
 import { DOC_TYPES, DOC_USE, guessMeta, extractItems, manualItem, suggest } from '../extract.js';
 
 const ACTIONS = {
   task: { new: '신규 등록', link: '기존 업무에 연결', exclude: '제외' },
   plan: { new: '신규 등록 + 예정사항', link: '기존 업무 연결 + 예정사항', planonly: '주간 예정사항으로만', exclude: '제외' },
-  log: { complete: '완료 근거로 승인', logonly: '실시 기록만 (연결 안 함)', exclude: '제외' },
+  log: { complete: '완료 근거로 승인 (업무 완료)', progress: '진행 기록으로 연결 (업무 진행중)', logonly: '실시 기록만 (연결 안 함)', exclude: '제외' },
 };
 const ctx = () => ({ members: state.db.members, tasks: state.db.tasks, today: today() });
 
@@ -67,6 +67,7 @@ function rowStatus(it) {
   const out = [];
   if (it.suggested) out.push('<span class="badge blue">추천</span>');
   if (it.kind !== 'log' && !it.startDate && !it.dueDate && it.type !== 'order') out.push('<span class="badge gray">일정 미정</span>');
+  if (it.kind === 'log') out.push(it.result === '완료' ? '<span class="badge green">완료 기록</span>' : '<span class="badge gray">진행 기록</span>');
   if (it.kind === 'log' && !it.date) out.push('<span class="badge red">날짜 없음</span>');
   if (!it.assigneeId) out.push('<span class="badge gray">담당 미정</span>');
   if (it.candidates?.some((c) => c.warn)) out.push('<span class="badge orange">후속 조치 주의</span>');
@@ -86,7 +87,7 @@ function reviewStep(s) {
     const acts = ACTIONS[it.kind];
     const actSel = `<select data-chg="impEdit" data-i="${i}" data-f="action">${options(acts, it.action)}</select>`;
     const linked = it.linkTaskId ? findTask(it.linkTaskId) : null;
-    const linkCell = (it.action === 'link' || it.action === 'complete')
+    const linkCell = (it.action === 'link' || it.action === 'complete' || it.action === 'progress')
       ? `<div class="small ${linked ? '' : 'red'}">→ ${linked ? esc(linked.title) : '오른쪽에서 연결할 업무를 고르세요'}</div>` : '';
     if (it.kind === 'log') {
       return `<tr class="${sel} ${it.action === 'exclude' ? 'excluded' : ''}" data-act="impSel" data-i="${i}">
@@ -113,7 +114,7 @@ function reviewStep(s) {
   return `
   <div class="review-bar box pad">
     <div><b>${esc(s.fileName)}</b> · ${esc(DOC_TYPES[s.meta.docType])} · 작성 ${fmtK(s.meta.writtenDate)} · 대상 ${fmtK(s.meta.periodFrom)} ~ ${fmtK(s.meta.periodTo)}</div>
-    <div class="muted">뽑은 항목 ${items.length}건 — ${isLog ? `완료 근거 ${cnt('complete')} · 실시 기록만 ${cnt('logonly')}` : `신규 ${cnt('new')} · 연결 ${cnt('link')}${cnt('planonly') ? ` · 예정사항만 ${cnt('planonly')}` : ''}`} · 제외 ${cnt('exclude')}</div>
+    <div class="muted">뽑은 항목 ${items.length}건 — ${isLog ? `완료 근거 ${cnt('complete')} · 진행 기록 ${cnt('progress')} · 실시 기록만 ${cnt('logonly')}` : `신규 ${cnt('new')} · 연결 ${cnt('link')}${cnt('planonly') ? ` · 예정사항만 ${cnt('planonly')}` : ''}`} · 제외 ${cnt('exclude')}</div>
     <div class="grow"></div>
     <button class="btn" data-act="impBack">처음으로</button>
     <button class="btn primary" data-act="impRun">처리 실행</button>
@@ -126,6 +127,12 @@ function reviewStep(s) {
   </div>`;
 }
 
+// 후보를 직접 고를 때: "완료" 기록이고 결과보고 경고가 없으면 완료, 아니면 진행 기록
+function logPickAction(it) {
+  const c = (it.candidates || []).find((x) => x.taskId === it.linkTaskId);
+  return it.result === '완료' && !c?.warn ? 'complete' : 'progress';
+}
+
 function sidePane(s) {
   const it = s.items[s.sel];
   const tabs = `<div class="tabs-inline"><button class="tab-btn ${s.side !== 'raw' ? 'on' : ''}" data-act="impSide" data-v="item">선택한 항목</button><button class="tab-btn ${s.side === 'raw' ? 'on' : ''}" data-act="impSide" data-v="raw">원문 전체</button></div>`;
@@ -135,12 +142,12 @@ function sidePane(s) {
       : `<div class="raw-table"><div class="muted">표${b.index + 1}</div><table class="tbl compact">${b.rows.map((r, ri) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}<td><button class="btn tiny" data-act="impAddRaw" data-text="${esc(r.join(' | '))}" data-loc="표${b.index + 1} ${ri + 1}행">+</button></td></tr>`).join('')}</table></div>`)).join('');
   }
   if (!it) return tabs + '<div class="muted">왼쪽에서 항목을 고르세요.</div>';
-  const pick = it.kind === 'log' ? 'complete' : 'link';
+  const pick = it.kind === 'log' ? logPickAction(it) : 'link';
   const cands = (it.candidates || []).map((c) => {
     const t = findTask(c.taskId);
     if (!t) return '';
     return `<div class="cand ${c.warn ? 'warn' : ''} ${it.linkTaskId === t.id ? 'on' : ''}">
-      <button class="btn small ${it.linkTaskId === t.id ? 'primary' : ''}" data-act="impPick" data-id="${t.id}">${it.linkTaskId === t.id ? '선택됨' : (pick === 'complete' ? '이 업무 완료로' : '이 업무에 연결')}</button>
+      <button class="btn small ${it.linkTaskId === t.id ? 'primary' : ''}" data-act="impPick" data-id="${t.id}">${it.linkTaskId === t.id ? '선택됨' : (pick === 'complete' ? '이 업무 완료로' : pick === 'progress' ? '이 업무 진행중으로' : '이 업무에 연결')}</button>
       <span><b>${esc(t.title)}</b> <span class="muted">${esc(memberFull(t.assigneeId) || '담당 미정')} · ${t.dueDate ? fmtK(t.dueDate) + ' 마감' : '마감 없음'} · ${t.status === 'done' ? '완료됨 · ' : ''}유사도 ${Math.round(c.score * 100)}%</span></span>
       ${c.warn ? `<div class="warn-text">⚠ ${esc(c.warn)}</div>` : ''}</div>`;
   }).join('');
@@ -152,7 +159,7 @@ function sidePane(s) {
       <label>지시일자<input type="date" value="${esc(it.orderDate || '')}" data-chg="impEdit" data-i="${s.sel}" data-f="orderDate"></label>
       <label>지시자<input value="${esc(it.orderedBy || '')}" data-chg="impEdit" data-i="${s.sel}" data-f="orderedBy"></label></div>` : ''}
     <h4>기존 업무와의 연결 후보</h4>
-    <p class="hint">날짜·업무명이 비슷한 업무입니다. 자동으로 합치지 않습니다. ${it.kind === 'log' ? '진행 과정만 적은 기록은 "실시 기록만"으로 두세요.' : '같은 업무가 여러 문서에 나오면 연결해서 한 건으로 관리합니다.'}</p>
+    <p class="hint">날짜·업무명이 비슷한 업무입니다. 자동으로 합치지 않습니다. ${it.kind === 'log' ? `"완료"라고 적힌 기록만 완료 근거가 되고, 그 밖의 조치 기록은 업무를 진행중으로 바꿉니다. (이 기록: <b>${esc(it.result || '진행')}</b>)` :'같은 업무가 여러 문서에 나오면 연결해서 한 건으로 관리합니다.'}</p>
     ${cands || '<div class="muted">비슷한 업무가 없습니다.</div>'}
     <label class="small">다른 업무 직접 고르기
       <select data-chg="impPickSel"><option value="">— 선택 —</option>${pool.map((t) => `<option value="${t.id}" ${it.linkTaskId === t.id ? 'selected' : ''}>${esc(t.title)} (${esc(memberName(t.assigneeId) || '미정')}${t.dueDate ? ', ' + fmtK(t.dueDate) : ''})</option>`).join('')}</select>
@@ -169,6 +176,7 @@ function doneStep(s) {
       <div class="stat"><span class="stat-label">신규 등록</span><span class="stat-num">${r.created}</span></div>
       <div class="stat"><span class="stat-label">기존 업무 연결</span><span class="stat-num">${r.linked}</span></div>
       <div class="stat c-done"><span class="stat-label">완료 처리</span><span class="stat-num">${r.completed}</span></div>
+      ${r.progressed ? `<div class="stat"><span class="stat-label">진행 기록 연결</span><span class="stat-num">${r.progressed}</span></div>` : ''}
       <div class="stat"><span class="stat-label">제외</span><span class="stat-num">${r.excluded}</span></div>
       <div class="stat"><span class="stat-label">일정 미정</span><span class="stat-num">${r.undated}</span></div>
       ${r.logs ? `<div class="stat"><span class="stat-label">실시 기록 저장</span><span class="stat-num">${r.logs}</span></div>` : ''}
@@ -233,8 +241,10 @@ Object.assign(handlers, {
     if (f === 'action' && (it.action === 'new' || it.action === 'logonly' || it.action === 'planonly' || it.action === 'exclude')) { /* 연결 선택은 유지해 두되 실행 시 쓰지 않는다 */ }
     if (['title', 'content', 'dueDate', 'date', 'assigneeId'].includes(f)) {
       const keep = { action: it.action, linkTaskId: it.linkTaskId };
+      if (it.kind === 'log' && f === 'content') it.result = logResult(it.content);
       suggest(it, ctx());
       Object.assign(it, keep);
+      if (it.kind === 'log' && f === 'content' && (it.action === 'complete' || it.action === 'progress')) it.action = logPickAction(it);
     }
     it.suggested = false;
     render();
@@ -242,7 +252,7 @@ Object.assign(handlers, {
   impPick(el) {
     const it = state.imp.items[state.imp.sel];
     it.linkTaskId = el.dataset.id;
-    it.action = it.kind === 'log' ? 'complete' : 'link';
+    it.action = it.kind === 'log' ? logPickAction(it) : 'link';
     it.suggested = false;
     render();
   },
@@ -269,7 +279,7 @@ Object.assign(handlers, {
     const errs = [];
     s.items.forEach((it, i) => {
       if (it.action === 'exclude') return;
-      if ((it.action === 'link' || it.action === 'complete') && !findTask(it.linkTaskId)) errs.push(`${i + 1}행: 연결할 업무를 고르세요.`);
+      if ((it.action === 'link' || it.action === 'complete' || it.action === 'progress') && !findTask(it.linkTaskId)) errs.push(`${i + 1}행: 연결할 업무를 고르세요.`);
       if (it.kind === 'log' && !isISO(it.date)) errs.push(`${i + 1}행: 실시 일자를 입력하세요.`);
       if (it.kind === 'log' && !it.content) errs.push(`${i + 1}행: 내용이 비어 있습니다.`);
       if (it.kind !== 'log' && !it.title) errs.push(`${i + 1}행: 업무명이 비어 있습니다.`);
@@ -278,7 +288,7 @@ Object.assign(handlers, {
     });
     if (errs.length) { s.error = errs.slice(0, 6).join(' / ') + (errs.length > 6 ? ` 외 ${errs.length - 6}건` : ''); return; }
     const n = (a) => s.items.filter((i) => i.action === a).length;
-    if (!confirm(`처리할까요?\n신규 ${n('new')} · 연결 ${n('link')} · 완료 근거 ${n('complete')} · 실시 기록 ${n('logonly')} · 예정사항만 ${n('planonly')} · 제외 ${n('exclude')}`)) return;
+    if (!confirm(`처리할까요?\n신규 ${n('new')} · 연결 ${n('link')} · 완료 근거 ${n('complete')} · 진행 기록 ${n('progress')} · 실시 기록 ${n('logonly')} · 예정사항만 ${n('planonly')} · 제외 ${n('exclude')}`)) return;
     if (state.db.documents.some((d) => d.hash && d.hash === s.hash)) { s.error = '이미 가져온 파일입니다.'; return; }
 
     // 문서를 먼저 저장해서 근거가 문서를 가리키게 한다
@@ -287,19 +297,21 @@ Object.assign(handlers, {
       periodTo: s.meta.periodTo, hash: s.hash, importedAt: new Date().toISOString(), importedBy: meId(),
       extractedText: s.blocks.map((b) => (b.kind === 'para' ? b.text : b.rows.map((r) => r.join(' | ')).join('\n'))).join('\n').slice(0, 30000),
     });
-    const r = { created: 0, linked: 0, completed: 0, excluded: 0, undated: 0, logs: 0, plans: 0, nexts: 0, noAssignee: 0, changes: 0 };
+    const r = { created: 0, linked: 0, completed: 0, progressed: 0,excluded: 0, undated: 0, logs: 0, plans: 0, nexts: 0, noAssignee: 0, changes: 0 };
     const relation = s.meta.docType === 'minutes' ? 'order' : s.meta.docType === 'logs' ? 'log' : 'plan';
     for (const it of s.items) {
       if (it.action === 'exclude') { r.excluded++; continue; }
       if (it.kind === 'log') {
         const log = await saveRec('daily_logs', {
-          date: it.date, assigneeId: it.assigneeId || null, content: it.content, result: it.result || '', taskId: null,
+          date: it.date, assigneeId: it.assigneeId || null, content: it.content,
+          // 사람이 고른 처리 방법이 결과를 정한다 (완료 근거 → 완료, 진행 기록 → 진행)
+          result: it.action === 'complete' ? '완료' : it.action === 'progress' ? '진행' : (it.result || ''), taskId: null,
           documentId: doc.id, location: it.location, raw: it.raw,
         });
         r.logs++;
-        if (it.action === 'complete') {
+        if (it.action === 'complete' || it.action === 'progress') {
           const res = await linkLog(log, it.linkTaskId);
-          r.completed++;
+          if (it.action === 'complete') r.completed++; else r.progressed++;
           if (res.next) r.nexts++;
         }
         continue;

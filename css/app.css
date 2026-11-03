@@ -293,6 +293,7 @@ select.mini.wide { max-width: 220px; }
 .badge.orange { background: var(--ns-bg); color: var(--ns); border-color: #f3d2a5; }
 .badge.blue { background: var(--plan-bg); color: var(--plan); border-color: #c5d8f6; }
 .badge.gray { background: var(--log-bg); }
+.badge.green { background: var(--done-bg); color: var(--done); border-color: #b9e2c9; }
 
 /* 상세 패널 */
 .drawer-back { position: fixed; inset: 0; background: rgba(15, 22, 35, .3); z-index: 40; }

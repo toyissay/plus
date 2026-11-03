@@ -5,7 +5,7 @@ import {
   resetSample, reloadAll, store,
 } from '../core.js';
 import { fmtK, isISO, mondayOf, realToday } from '../dates.js';
-import { TYPE_LABEL, CYCLE_LABEL, STATUS_LABEL, findCandidates, byDue } from '../rules.js';
+import { TYPE_LABEL, CYCLE_LABEL, STATUS_LABEL, findCandidates, byDue, logResult } from '../rules.js';
 
 const wrap = (title, body, cls = '') => `
   <div class="modal-back" data-act="closeModal"></div>
@@ -106,13 +106,13 @@ function logForm(m) {
       <label>담당자<select name="assigneeId" data-chg="logCands">${memberOptions(d.assigneeId)}</select></label>
     </div>
     <label>실시 내용 *<input name="content" value="${esc(d.content || '')}" required autocomplete="off" data-inp="logCands" placeholder="예: 월간 예산 집행 실적 보고 제출"></label>
-    <label>결과<input name="result" value="${esc(d.result || '')}" placeholder="예: 완료 / 진행"></label>
-    <label>연결된 업무 (선택하면 그 업무를 실시 일자로 완료 처리)
+    <label>결과<select name="result"><option value="완료" ${d.result === '완료' ? 'selected' : ''}>완료 — 연결한 업무를 완료 처리</option><option value="진행" ${d.result !== '완료' ? 'selected' : ''}>진행 — 연결한 업무를 진행중으로</option></select></label>
+    <label>연결된 업무
       <select name="taskId" id="logTaskSel"><option value="">— 연결 안 함 (● 실시로만 표시) —</option>
       ${pool.map((t) => `<option value="${t.id}" ${t.id === d.taskId ? 'selected' : ''}>${esc(t.title)} (${esc(memberFull(t.assigneeId) || '담당 미정')}${t.dueDate ? ', ' + fmtK(t.dueDate) : ''})</option>`).join('')}
       </select></label>
     <div id="logCandBox">${logCandHtml(d)}</div>
-    <p class="hint">진행 과정만 적은 기록은 연결하지 마세요. "점검 실시" 기록으로 "결과 보고" 업무를 완료 처리하지 않습니다.</p>
+    <p class="hint">결과는 실시 내용에 "완료"가 있으면 완료, 없으면 진행으로 자동 선택됩니다. "점검 실시" 기록으로 "결과 보고" 업무를 완료 처리하지 마세요.</p>
     <div class="form-actions"><button type="button" class="btn" data-act="closeModal">취소</button><button class="btn primary">저장</button></div>
   </form>`, 'wide');
 }
@@ -220,6 +220,7 @@ Object.assign(handlers, {
   logCands(el) {
     const form = el.form;
     const d = { ...state.modal.draft, date: form.date.value, assigneeId: form.assigneeId.value || null, content: form.content.value.trim() };
+    if (el.name === 'content') { d.result = logResult(d.content); form.result.value = d.result; }
     state.modal.draft = { ...state.modal.draft, ...d };
     document.getElementById('logCandBox').innerHTML = logCandHtml(d);
   },
@@ -231,18 +232,21 @@ Object.assign(handlers, {
     const d = state.modal.draft;
     const rec = {
       ...d, date: form.date.value, assigneeId: form.assigneeId.value || null, content: form.content.value.trim(),
-      result: form.result.value.trim(),
+      result: form.result.value,
     };
     const taskId = form.taskId.value || null;
     if (!isISO(rec.date) || !rec.content) { state.modal.error = '실시 일자와 내용을 입력하세요.'; return; }
-    const prevTaskId = d.id ? state.db.daily_logs.find((l) => l.id === d.id)?.taskId : null;
-    let log = await saveRec('daily_logs', { ...rec, taskId: prevTaskId || null });
+    const prev = d.id ? state.db.daily_logs.find((l) => l.id === d.id) : null;
+    const prevTaskId = prev?.taskId || null;
+    // 연결 업무나 결과(완료/진행)가 바뀌면 연결을 다시 건다
+    const relink = prevTaskId && (prevTaskId !== taskId || prev.result !== rec.result);
+    let log = await saveRec('daily_logs', { ...rec, result: prev && relink ? prev.result : rec.result, taskId: prevTaskId });
     let msg = '실시사항을 저장했습니다.';
-    if (prevTaskId && prevTaskId !== taskId) { const r = await unlinkLog(log); log = r.log; msg += ' ' + describeResult(r); }
-    if (taskId && taskId !== prevTaskId) {
+    if (relink) { const r = await unlinkLog(log); log = await saveRec('daily_logs', { ...r.log, result: rec.result }); msg += ' ' + describeResult(r); }
+    if (taskId && (taskId !== prevTaskId || relink)) {
       const t = findTask(taskId);
       const r = await linkLog(log, taskId);
-      msg += ` '${t.title}' 업무를 완료 처리했습니다. ${describeResult(r)}`;
+      msg += ` '${t.title}' ${rec.result === '완료' ? '업무를 완료 처리했습니다.' : '업무에 진행 기록으로 연결했습니다.'} ${describeResult(r)}`;
     }
     state.modal = null;
     toast(msg, 'ok');
