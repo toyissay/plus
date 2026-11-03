@@ -1,9 +1,9 @@
 // 화면 ④ 부서 현황 + 화면 ⑤ 주간 보고서 (PRD §5 기능 3, §6)
 import {
-  state, handlers, render, act, today, esc, memberName, findTask, statusChip, docOf,
+  state, handlers, render, act, today, esc, memberName, findTask, statusChip, docOf, kindTag,
   evidenceOf, outOfLogPeriod, linkLog, unlinkLog, deleteLog, removeRec, toast, describeResult, requestsOf,
 } from '../core.js';
-import { addDays, fmtK, fmtTime, diffDays } from '../dates.js';
+import { addDays, fmtK, fmtTime, diffDays, weekLabel } from '../dates.js';
 import { deptSummary, weekRange, orderElapsed, displayStatus, isOverdue, byDue, findCandidates, STATUS_LABEL } from '../rules.js';
 
 const REQ_STATE = { pending: '답변 대기', answered: '답변 완료', closed: '처리 완료' };
@@ -124,32 +124,44 @@ export function renderDept() {
 // ── 화면 ⑤ 주간 보고서 (인쇄용) ──
 export function renderReport() {
   const T = today();
-  const { ws, we, nws, nwe } = weekRange(T);
+  // 보고 주간: 기본은 기준일이 속한 주. 지난 주를 고르면 그 주 말일 기준으로 완료 미확인을 본다.
+  const { ws, we, nws, nwe } = weekRange(state.reportWeek || T);
+  const R = we < T ? addDays(we, 1) : T;
   const all = state.db.tasks;
   const week = all.filter((t) => t.dueDate && t.dueDate >= ws && t.dueDate <= we);
   const doneThisWeek = all.filter((t) => t.status === 'done' && ((t.completedAt >= ws && t.completedAt <= we) || week.includes(t)));
-  const overdue = all.filter((t) => isOverdue(t, T)).sort(byDue);
-  const doing = all.filter((t) => t.status === 'doing' && !isOverdue(t, T) && ((t.dueDate && t.dueDate <= we) || t.type === 'order')).sort(byDue);
-  const notStarted = week.filter((t) => t.status === 'todo' && !isOverdue(t, T)).sort(byDue);
+  const overdue = all.filter((t) => isOverdue(t, R)).sort(byDue);
+  const doing = all.filter((t) => t.status === 'doing' && !isOverdue(t, R) && ((t.dueDate && t.dueDate <= we) || t.type === 'order')).sort(byDue);
+  const notStarted = week.filter((t) => t.status === 'todo' && !isOverdue(t, R)).sort(byDue);
+  const thisWeek = ws === weekRange(T).ws;
   const nextTasks = all.filter((t) => t.status !== 'done' && t.dueDate >= nws && t.dueDate <= nwe).sort(byDue);
   const nextPlans = state.db.weekly_plans.filter((p) => p.plannedDate >= nws && p.plannedDate <= nwe).sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
   const list = (rows, cols) => (rows.length ? `<table class="tbl print-tbl"><thead><tr>${cols.map((c) => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td>${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '<p class="muted">해당 없음</p>');
-  const title = (t) => `${t.type === 'order' ? '★ ' : ''}${esc(t.title)}`;
+  const title = (t) => `${kindTag(t)}${esc(t.title)}`;
   const who = (t) => esc(memberName(t.assigneeId) || '미정');
   return `<div class="page report">
-    <div class="no-print report-bar"><button class="btn" data-act="goTab" data-tab="dept">← 누락 점검</button><span class="grow"></span><span class="muted">브라우저 인쇄 창에서 "PDF로 저장"도 할 수 있습니다.</span><button class="btn primary" data-act="print">🖨 인쇄</button></div>
+    <div class="no-print report-bar"><button class="btn" data-act="goTab" data-tab="dept">← 누락 점검</button>
+      <span class="week-pick">
+        <button class="btn icon sq" data-act="reportWeek" data-n="-7" aria-label="이전 주">‹</button>
+        <b>${weekLabel(ws)}</b>
+        <button class="btn icon sq" data-act="reportWeek" data-n="7" aria-label="다음 주">›</button>
+        <input type="date" value="${ws}" data-chg="reportWeekDate" title="날짜를 고르면 그 날짜가 속한 주로 이동">
+        ${thisWeek ? '' : '<button class="btn small" data-act="reportWeek" data-n="0">이번 주</button>'}
+      </span>
+      <span class="grow"></span><span class="muted">브라우저 인쇄 창에서 "PDF로 저장"도 할 수 있습니다.</span><button class="btn primary" data-act="print">🖨 인쇄</button></div>
     <div class="sheet">
       <h1>주간 업무 보고</h1>
-      <p class="sheet-sub">${fmtK(ws, { year: true })} ~ ${fmtK(we)} · 기준일 ${fmtK(T)} · 계획부서</p>
+      <p class="sheet-sub">${weekLabel(ws)} · ${fmtK(ws, { year: true })} ~ ${fmtK(we)} · 기준일 ${fmtK(T)} · 계획부서</p>
       <div class="sheet-sum">완료 ${doneThisWeek.length} · 진행중 ${doing.length} · 미착수 ${notStarted.length} · <b>완료 미확인 ${overdue.length}</b> · 다음 주 예정 ${nextTasks.length + nextPlans.length}</div>
-      <h3>1. 이번 주 완료</h3>
+      ${R !== T ? `<p class="muted">※ 지난 주 보고서입니다. 완료 미확인은 ${fmtK(we)} 기준으로, 업무 상태는 현재 상태로 표시합니다.</p>` : ''}
+      <h3>1. ${thisWeek ? '이번 주' : '해당 주'} 완료</h3>
       ${list(doneThisWeek, [['업무', title], ['담당', who], ['완료일', (t) => fmtK(t.completedAt)], ['방법', (t) => (t.completedMethod === 'log' ? '실시사항' : '직접')]])}
       <h3>2. 진행중</h3>
       ${list(doing, [['업무', title], ['담당', who], ['마감', (t) => fmtK(t.dueDate) || '—'], ['최근 메모', (t) => esc((t.notes || []).at(-1)?.text || '')]])}
-      <h3>3. 미착수 (이번 주 마감)</h3>
-      ${list(notStarted, [['업무', title], ['담당', who], ['마감', (t) => fmtK(t.dueDate)], ['상태', (t) => (displayStatus(t, T) === 'notstarted' ? '미착수' : '예정')]])}
+      <h3>3. 미착수 (${thisWeek ? '이번 주' : '해당 주'} 마감)</h3>
+      ${list(notStarted, [['업무', title], ['담당', who], ['마감', (t) => fmtK(t.dueDate)], ['상태', (t) => (displayStatus(t, R) === 'notstarted' ? '미착수' : '예정')]])}
       <h3>4. 완료 미확인 (마감 경과)</h3>
-      ${list(overdue, [['업무', title], ['담당', who], ['마감', (t) => fmtK(t.dueDate)], ['경과', (t) => `${diffDays(T, t.dueDate)}일`], ['상태', (t) => STATUS_LABEL[t.status]]])}
+      ${list(overdue, [['업무', title], ['담당', who], ['마감', (t) => fmtK(t.dueDate)], ['경과', (t) => `${diffDays(R, t.dueDate)}일`], ['상태', (t) => STATUS_LABEL[t.status]]])}
       <h3>5. 다음 주 예정 (${fmtK(nws)} ~ ${fmtK(nwe)})</h3>
       ${list(nextTasks, [['업무', title], ['담당', who], ['마감', (t) => fmtK(t.dueDate)]])}
       ${nextPlans.length ? `<h4>주간 예정사항</h4>${list(nextPlans, [['일자', (p) => fmtK(p.plannedDate)], ['담당', (p) => esc(memberName(p.assigneeId))], ['내용', (p) => esc(p.content)]])}` : ''}
@@ -165,6 +177,16 @@ Object.assign(handlers, {
     render();
   },
   print() { window.print(); },
+  reportWeek(el) {
+    const n = Number(el.dataset.n);
+    state.reportWeek = n === 0 ? null : addDays(weekRange(state.reportWeek || today()).ws, n);
+    render();
+  },
+  reportWeekDate(el) {
+    if (!el.value) return;
+    state.reportWeek = weekRange(el.value).ws;
+    render();
+  },
   planDelete: act(async (el) => {
     if (!confirm('이 주간 예정사항을 삭제할까요?')) return;
     await removeRec('weekly_plans', el.dataset.id);

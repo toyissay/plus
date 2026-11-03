@@ -253,6 +253,22 @@ textarea { resize: vertical; width: 100%; }
 .chk { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--done); cursor: pointer; flex: none; }
 .tiny-ic { padding: 3px; } .tiny-ic .ic { width: 15px; height: 15px; }
 .star { color: var(--star); margin-right: 3px; }
+/* 업무 구분 꼬리표: 지시·연간·분기·월간·주간·수시 */
+.kind { display: inline-block; font-size: 10.5px; font-weight: 800; line-height: 1; padding: 2px 4px; border-radius: 4px; margin-right: 4px; vertical-align: 1px; color: #fff; }
+.k-order { background: #b7791f; } .k-annual { background: #7c3aed; } .k-quarterly { background: #4f46e5; }
+.k-monthly { background: #2563c9; } .k-weekly { background: #0f9488; } .k-adhoc { background: #6b7480; }
+.ev[class*="kb-"] { border-left: 3px solid transparent; }
+.ev.kb-order { border-left-color: #b7791f; } .ev.kb-annual { border-left-color: #7c3aed; } .ev.kb-quarterly { border-left-color: #4f46e5; }
+.ev.kb-monthly { border-left-color: #2563c9; } .ev.kb-weekly { border-left-color: #0f9488; } .ev.kb-adhoc { border-left-color: #9aa3ad; }
+.kind-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 4px; margin: -4px 0 10px; font-size: 12.5px; }
+.kind-legend > .muted { font-weight: 700; margin-right: 6px; }
+.kind-legend .kind { font-size: 11.5px; padding: 3px 6px; }
+.kind-legend .kind-desc { color: var(--text-2); }
+.kind-legend .kind-item { white-space: nowrap; margin-right: 12px; }
+.kind { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.week-pick { display: inline-flex; align-items: center; gap: 8px; margin-left: 12px; }
+.week-pick b { font-size: 15px; min-width: 190px; text-align: center; }
+.week-pick input[type=date] { padding: 5px 8px; }
 select.mini { padding: 2px 4px; font-size: 12px; border-radius: 6px; }
 select.mini.wide { max-width: 220px; }
 .dd { font-weight: 700; color: var(--text); }
@@ -420,6 +436,8 @@ blockquote { margin: 4px 0 0; padding: 6px 10px; background: var(--surface-2); b
   .cell { min-height: 72px; padding: 3px; }
   .ev { padding: 2px 3px; font-size: 10.5px; }
   .ev-st span { display: none; }
+  .ev .kind { display: none; }
+  .kind-legend .kind-desc { display: none; }
   .cal-title { font-size: 19px; }
   .cell.today .num { width: 24px; height: 24px; }
 }

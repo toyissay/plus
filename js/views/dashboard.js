@@ -2,9 +2,9 @@
 import {
   state, handlers, render, act, today, scopeTasks, esc, memberName, findTask, statusChip, dueText, docOf,
   statusSelect, pendingRequestsFor, completeTask, uncompleteTask, setStatus, describeResult, toast,
-  pendingChanges, applyChange, holdChange,
+  pendingChanges, applyChange, holdChange, KINDS, KIND_LABEL, kindOf, kindTag,
 } from '../core.js';
-import { addDays, fmtK, fmtTime, lastDayOfMonth, mondayOf, pad, HOLIDAYS, dow, diffDays } from '../dates.js';
+import { addDays, fmtK, fmtTime, lastDayOfMonth, mondayOf, pad, HOLIDAYS, dow, diffDays, isoWeek, weekLabel } from '../dates.js';
 import {
   summary, panelGroups, weekRange, displayStatus, isOverdue, orderElapsed, ddayLabel, DISPLAY_LABEL, byDue,
 } from '../rules.js';
@@ -13,12 +13,8 @@ import { IC, STATUS_IC } from '../icons.js';
 const DOC_SHORT = { annual: '연간계획', weekly: '주간계획', eight: '8주예정', etc: '기타계획', logs: '실시사항', minutes: '회의록' };
 const md = (s) => (s ? `${s.slice(5, 7)}.${s.slice(8, 10)}` : '');
 
-// ISO 주차
-function isoWeek(s) {
-  const thu = addDays(mondayOf(s), 3);
-  const jan4 = `${thu.slice(0, 4)}-01-04`;
-  return Math.round(diffDays(mondayOf(thu), mondayOf(jan4)) / 7) + 1;
-}
+// 업무 구분 범례 (달력 위)
+const kindLegend = () => `<div class="kind-legend"><span class="muted">구분</span>${KINDS.map(([k, l]) => `<span class="kind-item"><span class="kind k-${k}">${l}</span><span class="kind-desc">${k === 'order' ? '지휘관 지시사항' : k === 'adhoc' ? '수시 업무' : `${l} 주기 업무`}</span></span>`).join('')}<span class="kind-item muted">칸 왼쪽 색 띠도 같은 구분입니다</span></div>`;
 
 export function renderDashboard() {
   const T = today();
@@ -30,6 +26,7 @@ export function renderDashboard() {
     <section class="card cal-card">
       ${summaryStrip(s, changes)}
       ${calToolbar(T)}
+      ${kindLegend()}
       ${state.calView === 'week' ? renderWeek(tasks, T) : renderMonth(tasks, T)}
       <div class="legend">
         <span>${STATUS_IC.planned}<i class="c-plan">예정</i></span><span>${STATUS_IC.doing}<i class="c-doing">진행중</i></span>
@@ -48,7 +45,7 @@ function calToolbar(T) {
   let label;
   if (week) {
     const ws = state.calWeek || weekRange(T).ws;
-    label = `${Number(ws.slice(5, 7))}월 ${isoWeek(ws)}주차 <small>${fmtK(ws)} ~ ${fmtK(addDays(ws, 6))}</small>`;
+    label = `${weekLabel(ws)} <small>${fmtK(ws)} ~ ${fmtK(addDays(ws, 6))}</small>`;
   } else {
     const [y, m] = (state.calMonth || T.slice(0, 7)).split('-').map(Number);
     label = `${y}년 ${m}월`;
@@ -110,9 +107,9 @@ function chip(e, T, { full = false } = {}) {
   const key = e.change ? 'planned' : od ? 'overdue' : ds;
   const label = e.change ? '변경안' : od ? '완료 미확인' : DISPLAY_LABEL[ds];
   const who = t.assigneeId ? memberName(t.assigneeId) : '담당 미정';
-  return `<div class="ev s-${key} ${e.change ? 'change' : ''}" data-act="openDetail" data-id="${t.id}" title="${esc(`${t.title} · ${who}${e.change ? ` · 기한 변경안 ${fmtK(t.dueDate)} → ${fmtK(t.pendingChange.dueDate)}` : ''}`)}">
+  return `<div class="ev s-${key} kb-${kindOf(t)} ${e.change ? 'change' : ''}" data-act="openDetail" data-id="${t.id}" title="${esc(`[${KIND_LABEL[kindOf(t)]}] ${t.title} · ${who}${e.change ? ` · 기한 변경안 ${fmtK(t.dueDate)} → ${fmtK(t.pendingChange.dueDate)}` : ''}`)}">
     <div class="ev-st">${STATUS_IC[key]}<span>${label}</span></div>
-    <div class="ev-t">${t.type === 'order' ? '<span class="star">★</span>' : ''}${esc(t.title)}</div>
+    <div class="ev-t">${kindTag(t)}${esc(t.title)}</div>
     ${full ? `<div class="ev-who">${esc(who)}</div>` : ''}
   </div>`;
 }
@@ -129,7 +126,7 @@ function dayCell(date, ym, T, events, { full = false, ws } = {}) {
   const hasChange = evs.some((e) => e.change);
   return `<div class="${cls}" data-act="pickDate" data-date="${date}">
     <div class="cell-head">
-      ${dow(date) === 1 && date === weekRange(T).ws ? `<span class="wk">${isoWeek(date)}주차</span>` : ''}
+      ${dow(date) === 1 && date === weekRange(T).ws ? `<span class="wk">${isoWeek(date).week}주차</span>` : ''}
       <span class="num">${num}</span>${hol ? `<span class="hol">${esc(hol)}</span>` : ''}
       ${hasChange ? '<span class="chg-tag">변경안</span>' : ''}
     </div>

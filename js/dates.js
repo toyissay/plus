@@ -18,6 +18,18 @@ export const diffDays = (a, b) => Math.round((parseD(a) - parseD(b)) / DAY); // 
 export const lastDayOfMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m: 1~12
 export const dow = (s) => new Date(parseD(s)).getUTCDay(); // 0=일
 export const mondayOf = (s) => addDays(s, -((dow(s) + 6) % 7));
+// ISO 주차 (월요일 시작, 목요일이 속한 해 기준)
+export function isoWeek(s) {
+  const thu = addDays(mondayOf(s), 3);
+  return { year: Number(thu.slice(0, 4)), week: Math.round(diffDays(mondayOf(thu), mondayOf(`${thu.slice(0, 4)}-01-04`)) / 7) + 1 };
+}
+// "26년 45주차(11월 2주차)": 월 주차는 그 주 월요일이 속한 달에서, 1일이 들어 있는 주를 1주차로 센다.
+export function weekLabel(s) {
+  const ws = mondayOf(s);
+  const { year, week } = isoWeek(ws);
+  const nth = Math.floor(diffDays(ws, mondayOf(`${ws.slice(0, 7)}-01`)) / 7) + 1;
+  return `${String(year).slice(2)}년 ${week}주차(${Number(ws.slice(5, 7))}월 ${nth}주차)`;
+}
 
 export function makeDate(y, m, d) {
   if (!(m >= 1 && m <= 12) || !(d >= 1 && d <= lastDayOfMonth(y, m))) return null;

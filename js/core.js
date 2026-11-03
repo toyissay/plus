@@ -30,6 +30,8 @@ export const state = {
   imp: null,
   mgmt: { view: 'open', type: '', assignee: '', status: '', from: '', to: '' },
   deptWeek: null,
+  reportWeek: null, // 주간 보고서에서 고른 주 (월요일). null이면 기준일이 속한 주
+
   collapsed: { undated: true, others: true },
 };
 
@@ -411,6 +413,12 @@ export function statusChip(t, T) {
   if (isOverdue(t, T)) h += ` <span class="chip warn">⚠ 완료 미확인</span>`;
   return h;
 }
+// 업무 구분 꼬리표 (달력 칩·주간 보고서). 주기 업무는 주기별로, 지시사항·수시 업무는 따로 표시한다.
+export const KINDS = [['order', '지시'], ['annual', '연간'], ['quarterly', '분기'], ['monthly', '월간'], ['weekly', '주간'], ['adhoc', '수시']];
+export const KIND_LABEL = Object.fromEntries(KINDS);
+export const kindOf = (t) => (t.type === 'order' ? 'order' : t.type === 'cycle' ? (t.cycle || 'monthly') : 'adhoc');
+export const kindTag = (t) => `<span class="kind k-${kindOf(t)}">${KIND_LABEL[kindOf(t)]}</span>`;
+
 export function typeTag(t) {
   if (t.type === 'cycle') return `<span class="tag type-cycle">${CYCLE_LABEL[t.cycle] || ''} 주기</span>`;
   if (t.type === 'order') return `<span class="tag type-order">★ 지시사항</span>`;
