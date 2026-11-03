@@ -41,7 +41,7 @@ function renderSide() {
     </nav>
     <div class="side-sec">
       <div class="side-sec-head">반영 자료 <span class="muted-inv">${state.db.documents.length}</span></div>
-      ${docs.map((d) => `<button class="side-doc" data-act="docDownload" data-id="${d.id}" title="${esc(d.fileName)} — 클릭하면 ${d.hasFile ? '원본 HWPX' : '반영 내용(텍스트)'} 내려받기">${IC.checkCircle}<span>${esc(d.fileName.replace(/\.hwpx$/i, ''))}</span></button>`).join('') || '<div class="side-empty">가져온 문서가 없습니다.</div>'}
+      ${docs.map((d) => `<button class="side-doc" data-act="docDownload" data-id="${d.id}" title="${esc(d.fileName)} — 클릭하면 ${d.hasFile ? '원본 HWPX' : '반영 내용 정리본(HWPX)'} 내려받기">${IC.checkCircle}<span>${esc(d.fileName.replace(/\.hwpx$/i, ''))}</span></button>`).join('') || '<div class="side-empty">가져온 문서가 없습니다.</div>'}
       <button class="side-add" data-act="goTab" data-tab="import">${IC.plus} 자료 추가</button>
     </div>
   </aside>`;
@@ -120,7 +120,7 @@ Object.assign(handlers, {
   async docDownload(el) {
     try {
       const kind = await downloadDoc(el.dataset.id);
-      if (kind === 'text') toast('원본 파일이 보관되지 않은 자료라 반영된 내용을 텍스트로 내려받았습니다.');
+      if (kind === 'summary') toast('원본 파일이 보관되지 않은 자료라 반영된 내용을 정리한 HWPX로 내려받았습니다.');
     } catch (e) {
       toast(`내려받기 실패: ${e.message}`, 'error', 7000);
     }

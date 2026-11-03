@@ -6,6 +6,7 @@ import {
   DISPLAY_LABEL, DISPLAY_ICON, TYPE_LABEL, CYCLE_LABEL, STATUS_LABEL,
 } from './rules.js';
 import { buildSeed } from './seed.js';
+import { buildHwpx } from './hwpxWrite.js';
 
 export { store, TABLES };
 
@@ -128,7 +129,7 @@ function saveBlob(blob, name) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-// 원본이 있으면 HWPX 원본을, 없으면(초기 샘플 등) 이 문서에서 반영된 내용을 정리한 텍스트를 내려받는다.
+// 원본이 있으면 HWPX 원본을, 없으면(초기 샘플 등) 이 문서에서 반영된 내용을 정리한 HWPX를 만들어 내려받는다.
 export async function downloadDoc(id) {
   const d = docOf(id);
   if (!d) return;
@@ -142,32 +143,36 @@ export async function downloadDoc(id) {
       return 'file';
     }
   }
-  saveBlob(new Blob(['﻿' + docSummaryText(d)], { type: 'text/plain;charset=utf-8' }), d.fileName.replace(/\.hwpx$/i, '') + ' (반영 내용).txt');
-  return 'text';
+  const name = d.fileName.replace(/\.hwpx$/i, '');
+  saveBlob(buildHwpx(name, docSummaryBlocks(d)), `${name} (반영 내용).hwpx`);
+  return 'summary';
 }
-export function docSummaryText(d) {
-  const L = [];
-  L.push(`[반영 자료] ${d.fileName}`);
-  L.push(`작성일 ${d.writtenDate || '-'} / 대상 기간 ${d.periodFrom || '-'} ~ ${d.periodTo || '-'} / 등록 ${(d.importedAt || '').slice(0, 10) || '초기 샘플'}`);
-  L.push('※ 교육·시연용 가상 데이터');
+export function docSummaryBlocks(d) {
+  const B = [];
+  const fk = (v) => fmtK(v) || '-';
+  B.push({ p: `${d.fileName.replace(/\.hwpx$/i, '')} - 반영 내용`, style: 'title' });
+  B.push({ p: `작성일 ${fk(d.writtenDate)} / 대상 기간 ${fk(d.periodFrom)} ~ ${fk(d.periodTo)} / 등록 ${d.importedAt ? fk(d.importedAt.slice(0, 10)) : '초기 샘플'}` });
+  B.push({ p: '※ 교육·시연용 가상 데이터. 원본 파일이 보관되지 않은 자료라 이 도구에 반영된 내용을 정리했습니다.' });
   const ev = state.db.task_evidence.filter((e) => e.documentId === d.id);
   if (ev.length) {
-    L.push('', `■ 연결된 업무 (${ev.length}건)`);
-    ev.forEach((e) => { const t = findTask(e.taskId); L.push(`- ${t ? t.title : '(삭제된 업무)'}${t ? ` [${STATUS_LABEL[t.status] || t.status}${t.dueDate ? `, 마감 ${t.dueDate}` : ''}]` : ''}`, `    원문(${e.location || '-'}): ${e.text || ''}`); });
+    B.push({ p: '' }, { p: `□ 연결된 업무 (${ev.length}건)`, style: 'head' });
+    B.push({ table: [['업무', '담당', '상태', '마감', '원문'], ...ev.map((e) => { const t = findTask(e.taskId); return [t ? t.title : '(삭제된 업무)', t ? memberName(t.assigneeId) || '미정' : '', t ? STATUS_LABEL[t.status] || t.status : '', t?.dueDate ? fmtK(t.dueDate) : '-', e.text || '']; })] });
   }
   const logs = state.db.daily_logs.filter((l) => l.documentId === d.id);
   if (logs.length) {
-    L.push('', `■ 실시사항 (${logs.length}건)`);
-    logs.forEach((l) => { const t = l.taskId && findTask(l.taskId); L.push(`- ${l.date} ${memberName(l.assigneeId) || ''}: ${l.content} [${l.result || '-'}]${t ? ` → ${t.title}` : ''}`); });
+    B.push({ p: '' }, { p: `□ 실시사항 (${logs.length}건)`, style: 'head' });
+    B.push({ table: [['일자', '담당', '내용', '결과', '연결된 업무'], ...logs.map((l) => [fmtK(l.date), memberName(l.assigneeId) || '', l.content, l.result || '-', (l.taskId && findTask(l.taskId)?.title) || '-'])] });
   }
   const plans = state.db.weekly_plans.filter((p) => p.documentId === d.id);
   if (plans.length) {
-    L.push('', `■ 주간 예정사항 (${plans.length}건)`);
-    plans.forEach((p) => L.push(`- ${p.plannedDate} ${memberName(p.assigneeId) || ''}: ${p.content}`));
+    B.push({ p: '' }, { p: `□ 주간 예정사항 (${plans.length}건)`, style: 'head' });
+    B.push({ table: [['일자', '담당', '내용'], ...plans.map((p) => [fmtK(p.plannedDate), memberName(p.assigneeId) || '', p.content])] });
   }
-  if (d.extractedText) L.push('', '■ 원문 텍스트', d.extractedText);
-  else L.push('', '(원본 파일이 보관되어 있지 않은 자료입니다.)');
-  return L.join('\r\n');
+  if (d.extractedText) {
+    B.push({ p: '' }, { p: '□ 원문 텍스트', style: 'head' });
+    d.extractedText.split('\n').forEach((line) => B.push({ p: line }));
+  }
+  return B;
 }
 
 // ── 조회 도우미 ──

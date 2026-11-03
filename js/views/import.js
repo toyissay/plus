@@ -41,7 +41,7 @@ function uploadStep(s) {
   </div>
   ${recent.length ? `<div class="box pad"><h3>가져온 문서</h3><table class="tbl compact"><thead><tr><th>파일</th><th>종류</th><th>대상 기간</th><th>등록</th><th></th></tr></thead><tbody>
     ${recent.map((d) => `<tr><td>${esc(d.fileName)}</td><td>${esc(DOC_TYPES[d.docType] || '')}</td><td>${fmtK(d.periodFrom)} ~ ${fmtK(d.periodTo)}</td><td class="muted">${esc(memberName(d.importedBy))}</td>
-      <td class="nowrap"><button class="btn tiny" data-act="docDownload" data-id="${d.id}" title="${d.hasFile ? '원본 HWPX 내려받기' : '반영된 내용을 텍스트로 내려받기'}">${d.hasFile ? '원본 받기' : '내용 받기'}</button></td></tr>`).join('')}
+      <td class="nowrap"><button class="btn tiny" data-act="docDownload" data-id="${d.id}" title="${d.hasFile ? '원본 HWPX 내려받기' : '반영된 내용을 정리한 HWPX 내려받기'}">${d.hasFile ? '원본 받기' : '정리본 받기'}</button></td></tr>`).join('')}
   </tbody></table></div>` : ''}`;
 }
 

@@ -39,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File serve.ps1
 3. Project Settings → API에서 **Project URL**과 **anon public 키**를 복사해 `js/config.js`에 넣는다.
    - service_role 키는 절대 넣지 않는다.
 4. 처음 접속하면 데이터가 비어 있으므로 샘플 데이터가 자동으로 들어간다.
-- 가져온 HWPX 원본(5MB 이하)은 `document_files` 테이블에 보관되어, 왼쪽 [반영 자료]를 누르면 원본을 내려받는다. 원본이 없는 초기 샘플 자료는 반영된 업무·실시사항을 정리한 텍스트로 내려받는다.
+- 가져온 HWPX 원본(5MB 이하)은 `document_files` 테이블에 보관되어, 왼쪽 [반영 자료]를 누르면 원본을 내려받는다. 원본이 없는 초기 샘플 자료는 반영된 업무·실시사항을 표로 정리한 HWPX(`js/hwpxWrite.js`로 생성)를 내려받는다.
 
 ## Vercel 배포
 빌드 단계가 없는 정적 사이트입니다.
