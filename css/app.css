@@ -141,6 +141,30 @@ textarea { resize: vertical; width: 100%; }
 /* ── 업무 달력 ── */
 .dash-grid { display: grid; grid-template-columns: minmax(0, 1fr) 410px; gap: 16px; align-items: start; }
 .cal-card { padding: 16px 16px 12px; }
+/* 첫 화면: 이번 주 요일별 예정·실시 */
+.home-card { padding: 16px 16px 12px; }
+.home-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+.home-head .cal-title { margin-left: 2px; }
+.week-days { display: flex; flex-direction: column; gap: 10px; }
+.day { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.day.today { border: 2px solid var(--teal); box-shadow: 0 0 0 3px var(--teal-soft); }
+.day.past { background: var(--surface-2); }
+.day-head { display: flex; align-items: baseline; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 15px; }
+.day-head span { color: var(--text-2); }
+.day.sun .day-head b, .day.sun .day-head > span:nth-child(2) { color: var(--od); }
+.day.sat .day-head b, .day.sat .day-head > span:nth-child(2) { color: var(--plan); }
+.today-tag { margin-left: 6px; background: var(--teal); color: #fff !important; font-size: 11.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+.day-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.day-col { padding: 4px 12px 8px; min-width: 0; }
+.day-col + .day-col { border-left: 1px dashed var(--line); }
+.col-label { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: var(--text-2); margin: 4px 0 2px; }
+.col-label .ic { width: 14px; height: 14px; }
+.log-row { display: flex; gap: 8px; align-items: flex-start; padding: 7px 2px; border-bottom: 1px solid var(--line); }
+.log-row[data-act] { cursor: pointer; }
+.log-row:last-child, .day-col .ri:last-child { border-bottom: 0; }
+.log-res { flex: none; font-size: 11.5px; font-weight: 800; padding: 2px 6px; border-radius: 5px; background: var(--doing-bg); color: var(--doing); margin-top: 1px; }
+.log-row.done .log-res { background: var(--done-bg); color: var(--done); }
+.log-text { font-weight: 600; }
 .panel-card { padding: 18px 16px; max-height: calc(100vh - 86px); overflow: auto; position: sticky; top: 70px; }
 .cal-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .cal-title { font-size: 24px; font-weight: 800; margin: 0 10px 0 6px; letter-spacing: -.5px; }
@@ -415,6 +439,8 @@ blockquote { margin: 4px 0 0; padding: 6px 10px; background: var(--surface-2); b
 }
 @media (max-width: 1100px) {
   .dash-grid, .review-grid, .two-col { grid-template-columns: 1fr; }
+  .day-cols { grid-template-columns: 1fr; }
+  .day-col + .day-col { border-left: 0; border-top: 1px dashed var(--line); }
   .panel-card, .review-grid > .box.pad { position: static; max-height: none; }
 }
 @media (max-width: 900px) {

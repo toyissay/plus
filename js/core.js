@@ -20,7 +20,7 @@ export function lsSet(k, v) {
 export const state = {
   db: Object.fromEntries(TABLES.map((t) => [t, []])),
   me: lsGet(LS_ME) || 'all',
-  tab: 'dashboard',
+  tab: 'home', // 첫 화면은 이번 주. 전체 달력은 'dashboard'
   calMonth: null,
   panel: null, // {kind:'card', key} | {kind:'date', date}
   detailId: null,

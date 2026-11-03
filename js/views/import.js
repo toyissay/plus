@@ -186,7 +186,7 @@ function doneStep(s) {
     ${r.nexts ? `<p>주기 업무 ${r.nexts}건의 다음 회차를 자동 생성했습니다.</p>` : ''}
     ${r.changes ? `<div class="alert warn">기존 업무와 마감일이 다른 항목 ${r.changes}건은 바로 바꾸지 않고 <b>기한 변경 반영 대기</b>로 올렸습니다. 업무 달력 오른쪽에서 근거를 보고 반영하거나 보류하세요.</div>` : ''}
     ${r.noAssignee ? `<div class="alert warn">담당자가 정해지지 않은 업무 ${r.noAssignee}건이 있습니다. 업무 관리에서 담당자를 정하세요.</div>` : ''}
-    <div class="form-actions"><button class="btn" data-act="impBack">다른 문서 가져오기</button><button class="btn primary" data-act="goTab" data-tab="dashboard">대시보드로</button></div>
+    <div class="form-actions"><button class="btn" data-act="impBack">다른 문서 가져오기</button><button class="btn primary" data-act="goTab" data-tab="home">이번 주로</button></div>
   </div>`;
 }
 

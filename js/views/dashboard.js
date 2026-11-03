@@ -66,7 +66,7 @@ function calToolbar(T) {
   </div>`;
 }
 
-function summaryStrip(s, changes) {
+export function summaryStrip(s, changes) {
   const on = (k) => (state.panel?.kind === 'card' && state.panel.key === k ? 'on' : '');
   const item = (key, ic, label, num, sub, cls) => `
     <button class="sum ${on(key)}" data-act="cardFilter" data-key="${key}" title="눌러서 해당 업무만 보기">
@@ -183,7 +183,7 @@ export function taskItem(t, T) {
   <div class="ri s-${key}">
     <input type="checkbox" class="chk" data-act="toggleDone" data-id="${t.id}" ${t.status === 'done' ? 'checked' : ''} title="완료 체크" aria-label="완료 체크">
     <div class="ri-main" data-act="openDetail" data-id="${t.id}">
-      <div class="ri-title">${t.type === 'order' ? '<span class="star">★</span>' : ''}${esc(t.title)}</div>
+      <div class="ri-title">${kindTag(t)}${esc(t.title)}</div>
       <div class="ri-meta">${statusChip(t, T)} ${meta.join(' · ')}</div>
     </div>
     <div class="ri-tools">${statusSelect(t)}<button class="btn icon tiny-ic" data-act="noteModal" data-id="${t.id}" title="메모 추가" aria-label="메모 추가">${IC.pen}</button></div>
@@ -220,7 +220,8 @@ function panelBack(title) {
   return `<div class="panel-head"><h2>${title}</h2><button class="btn outline small" data-act="panelReset">이번 주로 돌아가기</button></div>`;
 }
 
-function renderPanel(tasks, T, s, changes) {
+// home: 첫 화면(이번 주)에서는 왼쪽에 요일별 목록이 있으니 오늘·이번 주 마감 묶음을 빼고 "먼저 확인할 것"만 보인다.
+export function renderPanel(tasks, T, s, changes, { home = false } = {}) {
   const p = state.panel;
   const list = (arr) => (arr.length ? arr.map((t) => taskItem(t, T)).join('') : '<div class="empty">해당 업무가 없습니다.</div>');
   if (p?.kind === 'card') {
@@ -253,13 +254,15 @@ function renderPanel(tasks, T, s, changes) {
     count: g.overdue.length,
     foot: `<div class="pcard-foot"><p>실시 기록에서 완료 근거를 찾지 못했습니다.</p><button class="btn teal block" data-act="goTab" data-tab="dept">${IC.search} 업무 확인</button></div>`,
   }), '완료 확인 필요');
-  add(g.todayDue.length, () => pcard('today', 'plain', IC.clock, '오늘 마감', list(g.todayDue), { count: g.todayDue.length }), '오늘 마감');
-  add(g.thisWeek.length, () => pcard('week', 'plain', IC.calendar, '이번 주 마감', list(g.thisWeek), { count: g.thisWeek.length }), '이번 주 마감');
+  if (!home) {
+    add(g.todayDue.length, () => pcard('today', 'plain', IC.clock, '오늘 마감', list(g.todayDue), { count: g.todayDue.length }), '오늘 마감');
+    add(g.thisWeek.length, () => pcard('week', 'plain', IC.calendar, '이번 주 마감', list(g.thisWeek), { count: g.thisWeek.length }), '이번 주 마감');
+  }
   add(g.alerts.length, () => pcard('alerts', 'plain', IC.refresh, '알림 시점이 된 주기 업무', list(g.alerts), { count: g.alerts.length }), '알림 주기 업무');
   add(g.orders.length, () => pcard('orders', 'gold', IC.star, '미완료 지시사항', list(g.orders), { count: g.orders.length }), '지시사항');
   add(g.undated.length, () => pcard('undated', 'gray', IC.clock, `일정 미정 ${g.undated.length}건`, list(g.undated), { collapsible: true }), '일정 미정');
   add(g.others.length, () => pcard('others', 'gray', IC.list, `그 밖의 업무 ${g.others.length}건`, list(g.others), { collapsible: true }), '그 밖의 업무');
-  return `<div class="panel-head"><h2>이번 주 확인사항</h2><span class="muted small">${fmtK(weekRange(T).ws)} ~ ${fmtK(weekRange(T).we)}</span></div>`
+  return `<div class="panel-head"><h2>${home ? '먼저 확인할 것' : '이번 주 확인사항'}</h2><span class="muted small">${fmtK(weekRange(T).ws)} ~ ${fmtK(weekRange(T).we)}</span></div>`
     + out.join('')
     + (empty.length ? `<p class="muted small">해당 없음: ${empty.join(' · ')}</p>` : '')
     + `<p class="panel-note">${IC.info} 완료 미확인은 미실시 확정이 아닙니다. 담당자가 확인 후 처리합니다.</p>`;
