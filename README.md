@@ -51,6 +51,11 @@ powershell -ExecutionPolicy Bypass -File serve.ps1
 
 > 로그인이 없으므로 공개 URL을 아는 누구나 데이터를 보고 바꿀 수 있습니다. 가상 데이터만 쓰세요.
 
+## 로컬판 (서버·인터넷 없이)
+- `로컬판/kookbang-eum-plus.html` 하나를 더블클릭하면 Edge/Chrome에서 바로 동작합니다. 데이터는 그 PC 브라우저에 저장하고, ⚙ 설정의 백업 파일(.json)로 옮깁니다.
+- 웹판과 같은 소스에서 만듭니다: `powershell -ExecutionPolicy Bypass -File tools\build-local.ps1`
+- 자세한 사용법은 `로컬판/사용안내.md`.
+
 ## 샘플 HWPX
 - `samples/hwpx/`에 8개(연간·주간·8주·기타 계획, 지난주·금주 실시사항, 회의록, 지휘관 지시사항 관리대장)가 있습니다. `지휘관지시사항관리.hwpx`는 한글에서 직접 만든 파일이라 생성 스크립트가 다시 만들지 않습니다.
 - 내용을 고치려면 `samples/sample-docs.json`을 수정한 뒤 다시 만듭니다.

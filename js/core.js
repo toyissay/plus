@@ -133,6 +133,36 @@ export async function resetSample({ dryRun = false } = {}) {
   return { log };
 }
 
+// ── 백업·옮기기 (로컬판: 저장소가 이 PC 브라우저뿐이라 파일로 내보내고 가져온다) ──
+export async function exportBackup() {
+  const tables = {};
+  for (const t of TABLES) tables[t] = await store.list(t);
+  const files = await store.list(FILE_TABLE).catch(() => []);
+  const data = { app: 'kookbang-eum-plus', version: 1, exportedAt: new Date().toISOString(), tables, files };
+  const name = `국방이음plus_백업_${today()}.json`;
+  saveBlob(new Blob([JSON.stringify(data)], { type: 'application/json' }), name);
+  return { name, counts: Object.fromEntries(TABLES.map((t) => [t, tables[t].length])), files: files.length };
+}
+// 백업 파일로 이 PC의 데이터를 통째로 바꾼다
+export async function importBackup(text) {
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error('백업 파일(JSON)을 읽지 못했습니다.'); }
+  if (data?.app !== 'kookbang-eum-plus' || !data.tables) throw new Error('국방이음+ 백업 파일이 아닙니다.');
+  for (const t of TABLES) { await store.clear(t); await store.saveMany(t, data.tables[t] || []); }
+  await store.clear(FILE_TABLE);
+  let skipped = 0;
+  for (const f of data.files || []) { try { await store.save(FILE_TABLE, f); } catch { skipped++; } }
+  await reloadAll();
+  return { tasks: state.db.tasks.length, docs: state.db.documents.length, skipped };
+}
+// 실제 업무용 시작: 구성원만 남기고 업무·문서·실시사항·요청·원본을 모두 지운다
+export async function startEmpty() {
+  const members = state.db.members.length ? state.db.members : buildSeed(today()).members.map(stamp);
+  for (const t of TABLES) { await store.clear(t); if (t === 'members') await store.saveMany(t, members); }
+  await store.clear(FILE_TABLE);
+  await reloadAll();
+}
+
 // ── 반영 자료 원본 보관·내려받기 ──
 export const MAX_FILE = 5 * 1024 * 1024;
 function toB64(buf) {

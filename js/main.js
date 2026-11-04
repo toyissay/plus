@@ -65,7 +65,9 @@ function renderTop() {
       ${dd ? `<span class="tchip teal">시연 기준일 <b>${dotDate(dd)}</b><button class="tchip-x" data-act="demoClear" title="시연 기준일 해제" aria-label="시연 기준일 해제">✕</button></span>`
         : `<span class="tchip">기준일 <b>${dotDate(today())}</b></span>`}
       <span class="tchip">가상 데이터</span>
-      ${store.mode === 'local' ? '<span class="tchip red" title="이 브라우저에만 저장됩니다. PC 간 공유하려면 js/config.js에 Supabase 정보를 넣으세요.">로컬 모드</span>' : '<span class="tchip green">공유 저장소 연결됨</span>'}
+      ${store.mode !== 'local' ? '<span class="tchip green">공유 저장소 연결됨</span>'
+        : globalThis.__LOCAL_BUILD__ ? '<span class="tchip teal" title="서버·인터넷 없이 이 PC 브라우저에 저장합니다. ⚙ 설정에서 백업 파일을 내보내 두세요.">로컬판 · 이 PC에 저장</span>'
+        : '<span class="tchip red" title="이 브라우저에만 저장됩니다. PC 간 공유하려면 js/config.js에 Supabase 정보를 넣으세요.">로컬 모드</span>'}
     </div>
     <div class="top-right">
       <button class="btn outline" data-act="goTab" data-tab="report">${IC.download} 주간 보고서 내보내기</button>

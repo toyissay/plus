@@ -20,14 +20,28 @@ function localAdapter() {
     try { localStorage.setItem(KEY, JSON.stringify(db)); }
     catch (e) { throw new Error('브라우저 저장 공간에 쓸 수 없습니다 (' + e.message + ')'); }
   };
+  // 원본 파일은 크기가 커서 업무 데이터와 한 덩어리로 두지 않고 파일마다 따로 저장한다
+  // (가득 차도 업무 저장은 계속되도록).
+  const FK = 'tracker.file.';
+  const fileKeys = () => Object.keys(localStorage).filter((k) => k.startsWith(FK));
+  const files = {
+    async list() { return fileKeys().map((k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }).filter(Boolean); },
+    async get(id) { try { return JSON.parse(localStorage.getItem(FK + id)); } catch { return null; } },
+    async save(rec) {
+      try { localStorage.setItem(FK + rec.id, JSON.stringify(rec)); } catch (e) { throw new Error('브라우저 저장 공간이 부족해 원본 파일을 보관하지 못했습니다 (' + e.message + ')'); }
+      return rec;
+    },
+    async remove(id) { localStorage.removeItem(FK + id); },
+    async clear() { fileKeys().forEach((k) => localStorage.removeItem(k)); },
+  };
   return {
     mode: 'local',
-    async list(t) { return Object.values(load()[t] || {}); },
-    async get(t, id) { return (load()[t] || {})[id] || null; },
-    async save(t, rec) { const db = load(); (db[t] ||= {})[rec.id] = rec; persist(db); return rec; },
-    async saveMany(t, recs) { const db = load(); db[t] ||= {}; recs.forEach((r) => { db[t][r.id] = r; }); persist(db); },
-    async remove(t, id) { const db = load(); if (db[t]) delete db[t][id]; persist(db); },
-    async clear(t) { const db = load(); db[t] = {}; persist(db); },
+    async list(t) { return t === FILE_TABLE ? files.list() : Object.values(load()[t] || {}); },
+    async get(t, id) { return t === FILE_TABLE ? files.get(id) : (load()[t] || {})[id] || null; },
+    async save(t, rec) { if (t === FILE_TABLE) return files.save(rec); const db = load(); (db[t] ||= {})[rec.id] = rec; persist(db); return rec; },
+    async saveMany(t, recs) { if (t === FILE_TABLE) { for (const r of recs) await files.save(r); return; } const db = load(); db[t] ||= {}; recs.forEach((r) => { db[t][r.id] = r; }); persist(db); },
+    async remove(t, id) { if (t === FILE_TABLE) return files.remove(id); const db = load(); if (db[t]) delete db[t][id]; persist(db); },
+    async clear(t) { if (t === FILE_TABLE) return files.clear(); const db = load(); db[t] = {}; persist(db); },
   };
 }
 

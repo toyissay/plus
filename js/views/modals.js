@@ -2,7 +2,7 @@
 import {
   state, handlers, render, act, today, esc, options, memberOptions, findTask, memberFull, saveRec, newTask,
   addNote, startProgress, sendRequest, linkLog, unlinkLog, toast, describeResult, needName, demoDate, setDemoDate,
-  resetSample, reloadAll, store,
+  resetSample, reloadAll, store, exportBackup, importBackup, startEmpty,
 } from '../core.js';
 import { fmtK, isISO, mondayOf, realToday } from '../dates.js';
 import { TYPE_LABEL, CYCLE_LABEL, STATUS_LABEL, findCandidates, byDue, logResult } from '../rules.js';
@@ -167,8 +167,23 @@ function settingsForm() {
   </section>
   <section class="sec">
     <h4>저장소</h4>
-    <p>${store.mode === 'supabase' ? '✅ 공유 저장소(Supabase)에 연결되어 있습니다. 다른 PC에서도 새로고침하면 같은 데이터가 보입니다.' : '⚠ 로컬 모드: 이 브라우저에만 저장됩니다. PC 간 공유하려면 js/config.js에 Supabase 주소와 anon 키를 넣으세요.'}</p>
+    <p>${store.mode === 'supabase' ? '✅ 공유 저장소(Supabase)에 연결되어 있습니다. 다른 PC에서도 새로고침하면 같은 데이터가 보입니다.'
+      : globalThis.__LOCAL_BUILD__ ? '💾 로컬판: 이 PC의 이 브라우저에만 저장됩니다. 서버·인터넷 없이 동작합니다. 브라우저의 "인터넷 사용 기록 삭제(사이트 데이터)"를 하면 지워지니 아래 백업을 정기적으로 받아 두세요.'
+      : '⚠ 로컬 모드: 이 브라우저에만 저장됩니다. PC 간 공유하려면 js/config.js에 Supabase 주소와 anon 키를 넣으세요.'}</p>
   </section>
+  ${store.mode === 'local' ? `<section class="sec">
+    <h4>백업·옮기기</h4>
+    <p class="hint">데이터 전체(업무·실시사항·지시사항·반영 자료 원본)를 파일 하나(.json)로 내보내고, 다른 PC에서 가져와 그대로 이어서 쓸 수 있습니다. 가져오면 그 PC의 기존 데이터는 백업 내용으로 <b>바뀝니다</b>.</p>
+    <div class="row-inline">
+      <button class="btn primary" data-act="backupExport">백업 파일 내보내기</button>
+      <label class="btn outline">백업 파일 가져오기<input type="file" accept=".json,application/json" data-chg="backupImport" hidden></label>
+    </div>
+  </section>
+  <section class="sec">
+    <h4>빈 상태로 시작</h4>
+    <p class="hint">샘플을 지우고 실제 업무를 입력하려면 누르세요. 구성원(지휘관·과·중대)만 남기고 업무·문서·실시사항·확인 요청·원본을 모두 지웁니다. 먼저 백업을 받아 두는 것을 권합니다.</p>
+    <button class="btn danger" data-act="startEmpty">빈 상태로 시작</button>
+  </section>` : ''}
   <section class="sec">
     <h4>샘플 초기화</h4>
     <p class="hint">모든 데이터를 지우고, samples/hwpx 의 샘플 문서 8개를 추천값 그대로 가져와 데이터를 다시 만듭니다. 원본 파일도 [반영 자료]에 보관됩니다. 샘플 문서는 <b>2026-11-03</b> 기준으로 작성되어 있으니 시연 기준일을 그 날짜로 두세요. ${store.mode === 'supabase' ? '<b>공유 저장소의 데이터가 모두 바뀌어 다른 사용자에게도 반영됩니다.</b>' : ''}</p>
@@ -179,6 +194,24 @@ function settingsForm() {
 // ── 이벤트 ──
 Object.assign(handlers, {
   closeModal() { state.modal = null; render(); },
+  backupExport: act(async () => {
+    const r = await exportBackup();
+    toast(`백업 파일을 내려받았습니다: ${r.name} (업무 ${r.counts.tasks}건 · 원본 ${r.files}건)`, 'ok', 6000);
+  }),
+  backupImport: act(async (el) => {
+    const f = el.files?.[0];
+    if (!f) return;
+    if (!confirm(`'${f.name}' 백업으로 이 PC의 데이터를 모두 바꿀까요? 지금 데이터는 지워집니다.`)) { el.value = ''; return; }
+    const r = await importBackup(await f.text());
+    state.modal = null; state.detailId = null; state.panel = null; state.imp = null;
+    toast(`백업을 가져왔습니다: 업무 ${r.tasks}건 · 반영 자료 ${r.docs}건${r.skipped ? ` (저장 공간 부족으로 원본 ${r.skipped}건 제외)` : ''}`, 'ok', 6000);
+  }),
+  startEmpty: act(async () => {
+    if (!confirm('구성원만 남기고 모든 업무·문서·실시사항·확인 요청을 지울까요? 되돌릴 수 없습니다.')) return;
+    await startEmpty();
+    state.modal = null; state.detailId = null; state.panel = null; state.imp = null;
+    toast('빈 상태로 시작합니다. 문서 관리에서 HWPX를 가져오거나 업무를 추가하세요.', 'ok', 6000);
+  }),
   newTask() {
     state.modal = { kind: 'task', draft: newTask({ assigneeId: state.me === 'all' ? null : state.me, type: 'adhoc' }) };
     render();

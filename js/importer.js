@@ -104,9 +104,18 @@ async function applyDocStatus(task, it, meta, r) {
 
 // 샘플 HWPX 한 개를 사람이 검토 없이 추천값 그대로 가져온다.
 export async function importSampleFile(name, base = 'samples/hwpx/') {
-  const res = await fetch(base + encodeURIComponent(name), { cache: 'no-store' });
-  if (!res.ok) throw new Error(`샘플 파일을 읽지 못했습니다: ${name} (${res.status})`);
-  const buf = await res.arrayBuffer();
+  let buf;
+  const embedded = globalThis.__SAMPLES__?.[name]; // 로컬판(파일 하나)은 샘플을 base64로 품고 있다
+  if (embedded) {
+    const bin = atob(embedded);
+    buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    buf = buf.buffer;
+  } else {
+    const res = await fetch(base + encodeURIComponent(name), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`샘플 파일을 읽지 못했습니다: ${name} (${res.status})`);
+    buf = await res.arrayBuffer();
+  }
   const blocks = await parseHwpx(buf);
   const meta = guessMeta(name, blocks, today());
   const items = extractItems(blocks, meta, ctx());
